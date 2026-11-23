@@ -1,6 +1,6 @@
 # 4. Labels are HTML over the canvas
 
-- **Status:** Accepted
+- **Status:** Replaced by [ADR 0008](0008-diagram-and-lessons.md): the diagram is SVG now, and its labels are part of it
 - **Date:** 2026-11-19
 
 ## Context

@@ -31,8 +31,8 @@ export function JourneyPanel() {
 						className={cx(
 							'w-full rounded-lg px-3 py-2 text-left text-sm transition-colors',
 							journeyId === null
-								? 'bg-cyan-400/10 text-cyan-200 ring-1 ring-cyan-400/40'
-								: 'text-slate-300 hover:bg-white/[0.05]',
+								? 'bg-cyan-50 text-cyan-900 ring-1 ring-cyan-300'
+								: 'text-slate-600 hover:bg-slate-100',
 						)}
 					>
 						All journeys at once
@@ -50,8 +50,8 @@ export function JourneyPanel() {
 								className={cx(
 									'w-full rounded-lg px-3 py-2 text-left transition-colors',
 									active
-										? 'bg-cyan-400/10 ring-1 ring-cyan-400/40'
-										: 'hover:bg-white/[0.05]',
+										? 'bg-cyan-100 ring-1 ring-cyan-300'
+										: 'hover:bg-slate-100',
 								)}
 							>
 								<span className="flex items-center gap-2">
@@ -59,11 +59,11 @@ export function JourneyPanel() {
 										className="size-2 shrink-0 rounded-full"
 										style={{ background: journeyColor(state) }}
 									/>
-									<span className="truncate text-sm font-medium text-slate-100">
+									<span className="truncate text-sm font-medium text-slate-900">
 										{journey.name}
 									</span>
 								</span>
-								<span className="mt-0.5 flex gap-3 pl-4 text-xs text-slate-400 tabular-nums">
+								<span className="mt-0.5 flex gap-3 pl-4 text-xs text-slate-500 tabular-nums">
 									<span>{formatRps(state.rps)}</span>
 									<span>{formatShare(state.success)} succeed</span>
 									<span>{formatMs(state.latencyMs)}</span>
@@ -85,8 +85,8 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 	const slowest = Math.max(1, ...state.hops.map((h) => h.waitMs));
 
 	return (
-		<div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
-			<p className="text-xs text-slate-400">{journey.description}</p>
+		<div className="rounded-xl border border-slate-200 bg-card p-3">
+			<p className="text-xs text-slate-500">{journey.description}</p>
 			<dl className="mt-3 grid grid-cols-3 gap-2 text-center">
 				<Stat label="Succeed" value={formatShare(state.success)} />
 				<Stat label="Wait" value={formatMs(state.latencyMs)} />
@@ -96,7 +96,7 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 				/>
 			</dl>
 			{state.backgroundFailure > 0.001 && (
-				<p className="mt-2 rounded-md bg-amber-400/10 px-2 py-1 text-xs text-amber-200">
+				<p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
 					{formatShare(state.backgroundFailure)} of the background work fails.
 				</p>
 			)}
@@ -110,18 +110,18 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 					return (
 						<li key={`${hop.from}-${hop.to}-${i}`} className="text-xs">
 							<div className="flex items-baseline gap-1.5">
-								<span className="w-4 shrink-0 text-slate-600 tabular-nums">
+								<span className="w-4 shrink-0 text-slate-400 tabular-nums">
 									{i + 1}
 								</span>
-								<span className="min-w-0 flex-1 text-slate-200">{hop.label}</span>
-								<span className="shrink-0 text-slate-400 tabular-nums">
+								<span className="min-w-0 flex-1 text-slate-800">{hop.label}</span>
+								<span className="shrink-0 text-slate-500 tabular-nums">
 									{hop.mode === 'async' ? 'later' : formatMs(hopState.waitMs)}
 								</span>
 							</div>
 							<div className="mt-0.5 pl-5.5 text-slate-500">
 								<button
 									type="button"
-									className="hover:text-cyan-300 hover:underline"
+									className="hover:text-cyan-700 hover:underline"
 									onClick={() => select(hop.from)}
 								>
 									{name(hop.from)}
@@ -129,7 +129,7 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 								{' → '}
 								<button
 									type="button"
-									className="hover:text-cyan-300 hover:underline"
+									className="hover:text-cyan-700 hover:underline"
 									onClick={() => select(hop.to)}
 								>
 									{name(hop.to)}
@@ -139,7 +139,7 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 								<div className="mt-1 pl-5.5">
 									<Meter
 										share={hopState.waitMs / slowest}
-										color={failing ? statusColor.overloaded : '#38bdf8'}
+										color={failing ? statusColor.overloaded : '#fb923c'}
 									/>
 								</div>
 							)}
@@ -171,9 +171,9 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 
 function Stat({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="rounded-lg bg-white/[0.03] px-1 py-1.5">
+		<div className="rounded-lg bg-slate-50 px-1 py-1.5">
 			<dt className="text-[10px] tracking-wide text-slate-500 uppercase">{label}</dt>
-			<dd className="text-sm font-semibold text-slate-100 tabular-nums">{value}</dd>
+			<dd className="text-sm font-semibold text-slate-900 tabular-nums">{value}</dd>
 		</div>
 	);
 }

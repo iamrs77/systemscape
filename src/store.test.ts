@@ -13,6 +13,8 @@ describe('the app state', () => {
 		expect(app().systemId).toBe('ride-hailing');
 		expect(app().presetId).toBe('normal');
 		expect(app().result.journeys['request-ride']!.success).toBeCloseTo(1, 5);
+		// following the journey with the most steps
+		expect(app().journeyId).toBe('request-ride');
 	});
 
 	it('changes the traffic with a scenario, keeping your other changes', () => {
@@ -111,5 +113,14 @@ describe('challenges', () => {
 		expect(app().challengeId).toBeNull();
 		expect(app().presetId).toBe('normal');
 		expect(app().input.down.size).toBe(0);
+	});
+});
+
+describe('lessons', () => {
+	it('are remembered once finished, once each, even in a new session', () => {
+		app().markLearned('overview');
+		app().markLearned('overview');
+		expect(app().learned).toEqual(['ride-hailing/overview']);
+		expect(initialState().learned).toEqual(['ride-hailing/overview']);
 	});
 });

@@ -25,3 +25,34 @@ export function formatShare(share: number) {
 export function formatUtilization(utilization: number) {
 	return `${Math.round(utilization * 100)}%`;
 }
+
+/** A wait next to something everyone knows: a blink takes about a tenth of a second. */
+export function feelOfMs(ms: number) {
+	if (ms < 1) return 'instant';
+	if (ms < 40) return 'too quick to notice';
+	if (ms < 80) return 'under a blink';
+	if (ms < 150) return 'about a blink';
+	if (ms < 995) return `about ${Math.round(ms / 100)} blinks`;
+	return `${(ms / 1000).toFixed(1)} seconds: you’d notice`;
+}
+
+/** Requests a second, as how many arrive in a minute: 250/s is 15,000 every minute. */
+export function perMinute(rps: number) {
+	const n = rps * 60;
+	const count =
+		n >= 1e6
+			? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')} million`
+			: Math.round(n).toLocaleString('en-US');
+	return `${count} every minute`;
+}
+
+/** How many fail, as a simple fraction: 20% succeeding is “4 in 5 fail”. */
+export function feelOfShare(success: number) {
+	if (success >= 0.999) return 'every one';
+	if (success >= 0.99) return 'almost every one';
+	const fail = 1 - success;
+	const [best] = [2, 3, 4, 5, 6, 8, 10, 20, 50, 100]
+		.map((n) => ({ n, k: Math.max(1, Math.round(fail * n)) }))
+		.sort((a, b) => Math.abs(a.k / a.n - fail) - Math.abs(b.k / b.n - fail) || a.n - b.n);
+	return `${best!.k} in ${best!.n} fail`;
+}

@@ -1,0 +1,539 @@
+import type { EdgeLook } from '@/diagram/Diagram';
+import { edgeKey } from '@/diagram/layout';
+import {
+	layers,
+	type Component,
+	type Hop,
+	type Journey,
+	type Layer,
+	type System,
+} from '@/model/schema';
+import { defaultInput, simulate, type SimInput, type SimResult } from '@/sim/engine';
+import { feelOfMs, feelOfShare, formatMs, formatRps, formatShare, perMinute } from '@/sim/format';
+import { explain, SLOW_MS } from '@/sim/insights';
+
+/**
+ * Lessons, made from a system's data, so every system gets them without
+ * writing any: first the big picture, a row of the diagram at a time; then
+ * one lesson per journey, a step per call, ending with what happens under
+ * load and a challenge to try. Pure, so every system's lessons are tested.
+ */
+
+export type Tone = 'plain' | 'wait' | 'background' | 'warn';
+
+export type LessonStep = {
+	title: string;
+	/** Paragraphs. **Bold** marks the names of parts. */
+	body: string[];
+	/** Small labelled numbers over the diagram. */
+	facts: { label: string; value: string; /** The number in everyday terms. */ hint?: string }[];
+	/** Short notes about this step: who waits, whether it's optional... */
+	tags: { text: string; tone: Tone }[];
+	goodToKnow?: { title: string; text: string };
+	whenItFails?: string;
+	/** The parts at full strength; null for all of them. */
+	focus: string[] | null;
+	/** The connections drawn, and how. */
+	edges: [string, EdgeLook][];
+	/** Whose requests the connections carry. */
+	journeyId: string | null;
+	/** The scenario the diagram runs, when it isn't an ordinary day. */
+	presetId?: string;
+	/** Show how many copies of each part are running, as badges. */
+	showCopies?: boolean;
+	/** Show each step's time, for the journey this lesson follows. */
+	timeline?: boolean;
+	/** What one real request sends at this step, and what comes back. */
+	example?: { says: string; data: [string, string][] };
+	/** The part this step is about, to read more on. */
+	about?: string;
+	/** Where to go from the last step. */
+	action?: { kind: 'challenge'; id: string; label: string } | { kind: 'explore'; label: string };
+};
+
+export type Lesson = {
+	/** "overview", or the id of the journey it follows. */
+	id: string;
+	title: string;
+	summary: string;
+	steps: LessonStep[];
+};
+
+export const OVERVIEW = 'overview';
+
+const tierIntro: Record<Layer, { title: string; text: string }> = {
+	clients: {
+		title: 'The apps',
+		text: 'Everything starts on someone’s phone. The apps keep almost nothing themselves: they ask the backend for everything they show.',
+	},
+	balancing: {
+		title: 'Spreading the load',
+		text: 'Every request from the apps lands here first. The parts behind it run as several copies, and this decides which copy gets each request: the least busy one, and never one that has stopped working.',
+	},
+	edge: {
+		title: 'The front door',
+		text: 'Requests from the apps come in through here. It’s one place to check who’s calling, turn away too many requests, and keep connections to the apps open.',
+	},
+	services: {
+		title: 'The services',
+		text: 'The parts that do the work, each with one job. Keeping them separate lets each run as many copies as it needs, fail without taking the others down, and change on its own.',
+	},
+	async: {
+		title: 'Background work',
+		text: 'Work nobody waits for. It’s handed off to happen a moment later, so when something here is slow or broken, the app itself doesn’t slow down.',
+	},
+	data: {
+		title: 'The data',
+		text: 'Where things are kept. Data is harder to grow than code: you can’t just start another copy, so it’s split into shards that each hold part of it, or kept in memory as a cache to answer faster.',
+	},
+	external: {
+		title: 'Outside providers',
+		text: 'Other companies’ systems, like a payment provider. They’re not ours: we can’t add copies or fix them, only cope when they’re slow or down.',
+	},
+};
+
+/** The scenario every lesson starts from: an ordinary day. */
+function ordinary(system: System): SimInput {
+	const preset = system.presets[0]!;
+	return {
+		...defaultInput,
+		traffic: preset.traffic,
+		journeyTraffic: preset.journeyTraffic,
+		sudden: preset.sudden,
+	};
+}
+
+export function lessonsFor(system: System): Lesson[] {
+	const result = simulate(system, ordinary(system));
+	return [overview(system), ...system.journeys.map((j) => journeyLesson(system, j, result))];
+}
+
+const made = new WeakMap<System, Lesson[]>();
+
+/** A system's lessons, made once. */
+export function lessonsOf(system: System): Lesson[] {
+	let lessons = made.get(system);
+	if (!lessons) {
+		lessons = lessonsFor(system);
+		made.set(system, lessons);
+	}
+	return lessons;
+}
+
+const results = new WeakMap<System, Map<string, SimResult>>();
+
+/** What a lesson step's diagram shows: an ordinary day, or the step's scenario. Worked out once. */
+export function stepResult(system: System, presetId: string | undefined): SimResult {
+	let bySystem = results.get(system);
+	if (!bySystem) {
+		bySystem = new Map();
+		results.set(system, bySystem);
+	}
+	const key = presetId ?? '';
+	let result = bySystem.get(key);
+	if (!result) {
+		result = simulate(system, stepInput(system, presetId));
+		bySystem.set(key, result);
+	}
+	return result;
+}
+
+/** The conditions a lesson step's diagram runs: an ordinary day, or the step's scenario. */
+export function stepInput(system: System, presetId: string | undefined): SimInput {
+	const preset = system.presets.find((p) => p.id === presetId);
+	if (!preset) return ordinary(system);
+	return {
+		...defaultInput,
+		traffic: preset.traffic,
+		journeyTraffic: preset.journeyTraffic,
+		sudden: preset.sudden,
+	};
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+function overview(system: System): Lesson {
+	const used = layers.filter((layer) => system.components.some((c) => c.layer === layer));
+	// the example of calls and requests: the journey with the most calls
+	const example = [...system.journeys].sort((a, b) => b.hops.length - a.hops.length)[0]!;
+	const copies = system.components.find(
+		(c) => (c.kind === 'service' || c.kind === 'gateway') && c.instances > 1,
+	);
+
+	return {
+		id: OVERVIEW,
+		title: 'The big picture',
+		summary: `What the ${system.name.toLowerCase()} is made of, a row at a time.`,
+		steps: [
+			{
+				title: 'What it does',
+				body: [
+					system.description[0]!,
+					'The diagram shows its backend: every block is one part, and the parts are grouped into rows by what they do. Requests start in the top row, in the apps, and work their way down.',
+				],
+				facts: [
+					{ label: 'Parts', value: String(system.components.length) },
+					{ label: 'Rows', value: String(used.length) },
+					{ label: 'Journeys', value: String(system.journeys.length) },
+				],
+				tags: [],
+				focus: null,
+				edges: [],
+				journeyId: null,
+			},
+			{
+				title: 'How to read it',
+				body: [
+					copies
+						? `Each block is one part, with an icon on top that says what kind. A badge like ×${copies.instances} beside **${copies.name}** means ${copies.instances} copies of it are running: when it gets busy, more copies share the work. A cylinder is a database.`
+						: 'Each block is one part, with an icon on top that says what kind. A badge like ×3 means three copies of it are running: when it gets busy, more copies share the work. A cylinder is a database.',
+					`Arrows are calls from one part to another, and the dots moving along them are requests: here, the ones for “${example.name}”. A dashed arrow is background work that nobody waits for.`,
+				],
+				facts: [],
+				tags: [
+					{ text: 'Orange dot: a request', tone: 'wait' },
+					{ text: 'Violet dot: background work', tone: 'background' },
+					{ text: 'Red dot: a request that fails', tone: 'warn' },
+				],
+				focus: null,
+				edges: example.hops.map((h): [string, EdgeLook] => [edgeKey(h.from, h.to), 'flow']),
+				journeyId: example.id,
+				showCopies: true,
+			},
+			...used.map((layer): LessonStep => {
+				const parts = system.components.filter((c) => c.layer === layer);
+				const before = used.slice(0, used.indexOf(layer));
+				return {
+					title: tierIntro[layer].title,
+					body: [
+						tierIntro[layer].text,
+						...parts.map((c) => `**${c.name}**: ${lowerFirst(c.summary)}`),
+					],
+					facts: [{ label: 'In this row', value: plural(parts.length, 'part') }],
+					tags: [],
+					focus: system.components
+						.filter((c) => c.layer === layer || before.includes(c.layer))
+						.map((c) => c.id),
+					edges: [],
+					journeyId: null,
+					about: parts.length === 1 ? parts[0]!.id : undefined,
+				};
+			}),
+			{
+				title: 'Next: follow a request',
+				body: [
+					'Those are the parts. What makes a design work is how they talk to each other: who calls whom, who waits, and what happens when one of them can’t answer.',
+					`Next, follow what happens when someone uses the app, one call at a time, starting with “${system.journeys[0]!.name}”.`,
+				],
+				facts: [],
+				tags: [],
+				focus: null,
+				edges: [],
+				journeyId: null,
+			},
+		],
+	};
+}
+
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
+/** Who waits: the person the lesson follows ("Rohit"), or "the rider", from "Rider app". */
+function whoWaits(system: System, journey: Journey) {
+	if (journey.person) return journey.person;
+	const app = system.components.find((c) => c.id === journey.hops[0]!.from);
+	const person = app?.kind === 'client' ? app.name.replace(/\s*app$/i, '').trim() : '';
+	return person ? `the ${person.toLowerCase()}` : 'the user';
+}
+
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+function journeyLesson(system: System, journey: Journey, result: SimResult): Lesson {
+	const part = (id: string) => system.components.find((c) => c.id === id)!;
+	const state = result.journeys[journey.id]!;
+	const who = whoWaits(system, journey);
+	const involved = [...new Set(journey.hops.flatMap((h) => [h.from, h.to]))];
+	const keys = journey.hops.map((h) => edgeKey(h.from, h.to));
+	const met = new Set<string>([journey.hops[0]!.from]);
+
+	const hopSteps = journey.hops.map((hop, i): LessonStep => {
+		const from = part(hop.from);
+		const to = part(hop.to);
+		const firstMeeting = !met.has(to.id);
+		met.add(from.id);
+		met.add(to.id);
+		const hopState = state.hops[i]!;
+		return {
+			title: hop.label,
+			body: [callSentence(hop, from, to), to.summary],
+			example: hop.example && {
+				says: hop.example.says,
+				data: Object.entries(hop.example.data),
+			},
+			facts: hopFacts(hop, to, hopState.sent, hopState.waitMs, result),
+			tags: hopTags(hop, who),
+			goodToKnow: goodToKnow(hop, to, firstMeeting),
+			whenItFails: to.kind === 'client' ? undefined : to.onFailure,
+			focus: [...met],
+			edges: keys
+				.slice(0, i + 1)
+				.map((key, j): [string, EdgeLook] => [key, j === i ? 'current' : 'still']),
+			journeyId: journey.id,
+			about: to.id,
+		};
+	});
+
+	// where the time goes: the slowest steps the user waits for
+	const slowest = journey.hops
+		.map((hop, i) => ({ hop, wait: state.hops[i]!.waitMs }))
+		.filter(({ hop }) => hop.mode === 'sync')
+		.sort((a, b) => b.wait - a.wait)[0];
+
+	const load = underLoad(system, journey);
+	const challenge = system.challenges.find((c) => c.goal.journey === journey.id);
+	const hasBackground = journey.hops.some((h) => h.mode === 'async');
+	const allFlowing = keys.map((key): [string, EdgeLook] => [key, 'flow']);
+
+	return {
+		id: journey.id,
+		title: journey.name,
+		summary: journey.description,
+		steps: [
+			{
+				title: 'The journey',
+				body: [
+					...(journey.story ? [journey.story] : []),
+					journey.description,
+					journey.person
+						? `It takes ${plural(journey.hops.length, 'call')} between ${plural(involved.length, 'part')}. Let’s follow ${journey.person}’s request from start to finish.`
+						: `It takes ${plural(journey.hops.length, 'call')} between ${plural(involved.length, 'part')}. Let’s follow one request from start to finish.`,
+				],
+				facts: [
+					{
+						label: 'Requests a second',
+						value: formatRps(state.rps),
+						hint: perMinute(state.rps),
+					},
+					{ label: 'Calls', value: String(journey.hops.length) },
+					{ label: 'Parts', value: String(involved.length) },
+				],
+				tags: [],
+				focus: [journey.hops[0]!.from],
+				edges: [],
+				journeyId: journey.id,
+				about: journey.hops[0]!.from,
+			},
+			...hopSteps,
+			{
+				title: 'Where the time goes',
+				body: [
+					`From tap to answer, ${who} waits about ${formatMs(state.latencyMs)} on an ordinary evening: ${feelOfMs(state.latencyMs)}.`,
+					slowest
+						? `The longest wait is “${slowest.hop.label}”, at ${formatMs(slowest.wait)}: **${part(slowest.hop.from).name}** waiting on **${part(slowest.hop.to).name}**.`
+						: '',
+					hasBackground
+						? 'The dashed calls happen in the background, so they add nothing to the wait.'
+						: '',
+				].filter(Boolean),
+				facts: [
+					{
+						label: 'Wait',
+						value: formatMs(state.latencyMs),
+						hint: feelOfMs(state.latencyMs),
+					},
+					{
+						label: 'Succeed',
+						value: formatShare(state.success),
+						hint: feelOfShare(state.success),
+					},
+					{
+						label: 'Requests a second',
+						value: formatRps(state.rps),
+						hint: perMinute(state.rps),
+					},
+				],
+				tags: [],
+				focus: involved,
+				edges: allFlowing,
+				journeyId: journey.id,
+				timeline: true,
+			},
+			{
+				title: load.preset.name,
+				body: [load.preset.description, ...load.story],
+				facts: [
+					{
+						label: 'Traffic',
+						value: `${load.preset.traffic}×`,
+						hint: `${load.preset.traffic} times a normal evening`,
+					},
+					{
+						label: 'Succeed',
+						value: formatShare(load.state.success),
+						hint: feelOfShare(load.state.success),
+					},
+					{
+						label: 'Wait',
+						value: formatMs(load.state.latencyMs),
+						hint: feelOfMs(load.state.latencyMs),
+					},
+				],
+				tags: load.healthy
+					? [{ text: 'It holds up', tone: 'plain' }]
+					: [{ text: 'Something breaks', tone: 'warn' }],
+				focus: involved,
+				edges: allFlowing,
+				journeyId: journey.id,
+				presetId: load.preset.id,
+				about: load.culprit,
+			},
+			challenge
+				? {
+						title: `Your turn: ${challenge.title.toLowerCase()}`,
+						body: [
+							challenge.story,
+							'Can you keep it running? Change things and the goal is checked as you go.',
+						],
+						facts: [],
+						tags: [],
+						focus: involved,
+						edges: allFlowing,
+						journeyId: journey.id,
+						action: {
+							kind: 'challenge',
+							id: challenge.id,
+							label: 'Start the challenge',
+						},
+					}
+				: {
+						title: 'Your turn',
+						body: [
+							'Push the traffic up, take parts down, and switch the safety features on and off, and see what this journey does.',
+						],
+						facts: [],
+						tags: [],
+						focus: involved,
+						edges: allFlowing,
+						journeyId: journey.id,
+						action: { kind: 'explore', label: 'Explore freely' },
+					},
+		],
+	};
+}
+
+function callSentence(hop: Hop, from: Component, to: Component) {
+	if (hop.onMiss) {
+		const miss = from.hitRate !== undefined ? formatShare(1 - from.hitRate) : 'some';
+		return `When **${from.name}** doesn’t have the answer (${miss} of the time), it asks **${to.name}**.`;
+	}
+	if (hop.mode === 'async') {
+		return `**${from.name}** hands this to **${to.name}** and carries on without waiting.`;
+	}
+	if (from.kind === 'client') return `**${from.name}** sends a request to **${to.name}**.`;
+	return `**${from.name}** calls **${to.name}**, and waits for the answer.`;
+}
+
+function hopTags(hop: Hop, who: string): LessonStep['tags'] {
+	const tags: LessonStep['tags'] = [];
+	if (hop.mode === 'async') tags.push({ text: 'Background: nobody waits', tone: 'background' });
+	else tags.push({ text: `${capitalise(who)} waits for this`, tone: 'wait' });
+	if (hop.optional) tags.push({ text: 'Optional', tone: 'plain' });
+	if (hop.onMiss) tags.push({ text: 'Only on a cache miss', tone: 'plain' });
+	if (hop.share < 1) tags.push({ text: `${formatShare(hop.share)} of requests`, tone: 'plain' });
+	if (hop.calls !== 1) tags.push({ text: `${hop.calls} calls per request`, tone: 'plain' });
+	if (hop.retries > 0) tags.push({ text: `Tried again up to ${hop.retries}×`, tone: 'plain' });
+	return tags;
+}
+
+function hopFacts(
+	hop: Hop,
+	to: Component,
+	sent: number,
+	waitMs: number,
+	result: SimResult,
+): LessonStep['facts'] {
+	const facts: LessonStep['facts'] = [
+		{ label: 'Calls a second', value: formatRps(sent), hint: perMinute(sent) },
+		hop.mode === 'async'
+			? { label: 'Adds to the wait', value: 'nothing', hint: 'nobody waits for it' }
+			: { label: 'Adds to the wait', value: formatMs(waitMs), hint: feelOfMs(waitMs) },
+	];
+	const copies = result.components[to.id]?.instances ?? to.instances;
+	if (to.kind === 'cache' && to.hitRate !== undefined) {
+		facts.push({
+			label: 'Answered here',
+			value: formatShare(to.hitRate),
+			hint: `only ${Math.round((1 - to.hitRate) * 100)} in 100 need the slow way`,
+		});
+	} else if (to.kind === 'database') {
+		facts.push({
+			label: 'Shards',
+			value: String(copies),
+			hint: `split across ${copies} machines`,
+		});
+	} else if (to.kind !== 'client' && to.kind !== 'external') {
+		facts.push({
+			label: `Copies of ${to.name}`,
+			value: String(copies),
+			hint: `${copies} ${copies === 1 ? 'computer' : 'computers'} doing this job`,
+		});
+	}
+	return facts;
+}
+
+function goodToKnow(hop: Hop, to: Component, firstMeeting: boolean): LessonStep['goodToKnow'] {
+	if (hop.optional) {
+		return {
+			title: 'It can fail, and that’s fine',
+			text: `This call is optional: if **${to.name}** doesn’t answer in time, the request still succeeds, just a little worse. That’s called graceful degradation.`,
+		};
+	}
+	if (firstMeeting && to.kind !== 'client') return { title: `Why ${to.name}?`, text: to.why };
+	if (hop.mode === 'async') {
+		return {
+			title: 'Why in the background?',
+			text: 'Nobody needs the answer straight away, so it’s handed off. If this part is slow or down, the work waits and is tried again, and nobody notices.',
+		};
+	}
+	if (hop.retries > 0) {
+		return {
+			title: 'Trying again',
+			text: 'A failed call is tried again. That hides brief blips, but when the part is overloaded, every retry is more load on it.',
+		};
+	}
+	return { title: `About ${to.name}`, text: to.scaling };
+}
+
+/** The scenario that's hardest on a journey, and what happens to it. */
+function underLoad(system: System, journey: Journey) {
+	const candidates = system.presets.slice(1).length ? system.presets.slice(1) : system.presets;
+	const runs = candidates.map((preset) => {
+		const input: SimInput = {
+			...defaultInput,
+			traffic: preset.traffic,
+			journeyTraffic: preset.journeyTraffic,
+			sudden: preset.sudden,
+		};
+		const result = simulate(system, input);
+		return { preset, input, result, state: result.journeys[journey.id]! };
+	});
+	const worst = [...runs].sort(
+		(a, b) => a.state.success - b.state.success || b.state.latencyMs - a.state.latencyMs,
+	)[0]!;
+	const healthy = worst.state.success >= 0.99 && worst.state.latencyMs <= SLOW_MS;
+	const involved = new Set(journey.hops.flatMap((h) => [h.from, h.to]));
+	const insights = explain(system, worst.input, worst.result).filter(
+		(i) =>
+			(i.level === 'bad' || i.level === 'warn') &&
+			(i.text.startsWith(journey.name) || (i.componentId && involved.has(i.componentId))),
+	);
+	const story = healthy
+		? [
+				`“${journey.name}” holds up: ${formatShare(worst.state.success)} of requests still succeed, in about ${formatMs(worst.state.latencyMs)}. Autoscaling adds copies as the traffic grows.`,
+			]
+		: [
+				`Now only ${formatShare(worst.state.success)} of “${journey.name}” requests succeed, and ${whoWaits(system, journey)} waits about ${formatMs(worst.state.latencyMs)}.`,
+				...insights.slice(0, 2).map((i) => i.text),
+			];
+	const culprit = insights.find((i) => i.componentId)?.componentId;
+	return { preset: worst.preset, state: worst.state, healthy, story, culprit };
+}

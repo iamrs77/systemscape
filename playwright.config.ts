@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = 4180;
 const ci = Boolean(process.env.CI);
 
-/** End-to-end tests run against the production build, with WebGL on (software rendering). */
+/** End-to-end tests run against the production build, on a desktop and a phone. */
 export default defineConfig({
 	testDir: './e2e',
 	fullyParallel: true,
@@ -13,7 +13,6 @@ export default defineConfig({
 	use: {
 		baseURL: `http://localhost:${PORT}`,
 		trace: 'retain-on-failure',
-		launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
 	},
 	projects: [
 		{

@@ -1,14 +1,14 @@
-import type { ComponentKind, Layer } from '@/model/schema';
+import type { ComponentKind, Layer, System } from '@/model/schema';
 import type { JourneyState, Status } from '@/sim/engine';
 import { SLOW_MS } from '@/sim/insights';
 
-/** Colours shared by the 3D scene and the panels, so a status looks the same in both. */
+/** Colours shared by the diagram and the panels, so a status looks the same in both. */
 export const statusColor: Record<Status, string> = {
-	idle: '#64748b',
-	ok: '#34d399',
-	busy: '#fbbf24',
-	overloaded: '#f87171',
-	down: '#52525b',
+	idle: '#94a3b8',
+	ok: '#3f9a5f',
+	busy: '#d39a1c',
+	overloaded: '#d1492f',
+	down: '#64748b',
 };
 
 export const statusLabel: Record<Status, string> = {
@@ -19,23 +19,10 @@ export const statusLabel: Record<Status, string> = {
 	down: 'Down',
 };
 
-export const sceneColor = {
-	background: '#070b16',
-	client: '#818cf8',
-	row: '#111a2e',
-	edge: '#7dd3fc',
-	edgeAsync: '#a78bfa',
-	edgeIdle: '#1e293b',
-	failing: '#f87171',
-	breaker: '#f59e0b',
-	packet: '#67e8f9',
-	packetAsync: '#c4b5fd',
-	selected: '#f8fafc',
-} as const;
-
 export const kindLabel: Record<ComponentKind, string> = {
 	client: 'App',
 	cdn: 'CDN',
+	balancer: 'Load balancer',
 	gateway: 'Gateway',
 	service: 'Service',
 	worker: 'Background worker',
@@ -49,11 +36,18 @@ export const kindLabel: Record<ComponentKind, string> = {
 
 export const layerLabel: Record<Layer, string> = {
 	clients: 'Apps',
+	balancing: 'Load balancing',
 	edge: 'Edge',
 	services: 'Services',
 	async: 'Background',
 	data: 'Data',
 	external: 'Outside',
+};
+
+/** Whether a system's design is its real one, said up front wherever it's shown. */
+export const basisLabel: Record<System['basis'], string> = {
+	inspired: 'Simplified, from public talks',
+	real: 'Real architecture',
 };
 
 /** Green when nearly everything succeeds quickly, amber when slow, red when failing. */

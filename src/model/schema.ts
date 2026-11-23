@@ -8,6 +8,7 @@ import { z } from 'zod';
 export const componentKinds = [
 	'client',
 	'cdn',
+	'balancer',
 	'gateway',
 	'service',
 	'worker',
@@ -21,7 +22,15 @@ export const componentKinds = [
 export type ComponentKind = (typeof componentKinds)[number];
 
 // front to back: clients nearest the camera, outside providers furthest away
-export const layers = ['clients', 'edge', 'services', 'async', 'data', 'external'] as const;
+export const layers = [
+	'clients',
+	'balancing',
+	'edge',
+	'services',
+	'async',
+	'data',
+	'external',
+] as const;
 export type Layer = (typeof layers)[number];
 
 const id = z.string().regex(/^[a-z0-9-]+$/, 'ids are lower-case words joined by dashes');
@@ -69,6 +78,13 @@ export const hopSchema = z.object({
 	retries: z.number().int().min(0).max(5).default(0),
 	/** The request still succeeds without it (graceful degradation), e.g. a ride shown without an ETA. */
 	optional: z.boolean().default(false),
+	/**
+	 * What one real request sends at this step, for the lessons: a sentence,
+	 * and the details that travel (and an `answer` that comes back).
+	 */
+	example: z
+		.object({ says: text, data: z.record(z.string(), z.string()).default({}) })
+		.optional(),
 });
 export type Hop = z.output<typeof hopSchema>;
 
@@ -78,6 +94,10 @@ export const journeySchema = z.object({
 	description: text,
 	/** Requests per second at normal (1×) traffic. */
 	rps: z.number().positive(),
+	/** The person the lessons follow through this journey, e.g. "Rohit". */
+	person: text.optional(),
+	/** Sets the scene for the lesson: who, where, when. */
+	story: text.optional(),
 	/** In the order they happen. Each hop starts from the client or a component reached earlier. */
 	hops: z.array(hopSchema).min(1),
 });

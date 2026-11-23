@@ -1,16 +1,10 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { buttonSizes, buttonVariants } from './buttonStyles';
 import { cx } from './cx';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 	variant?: 'plain' | 'primary' | 'ghost' | 'danger';
 	size?: 'sm' | 'md';
-};
-
-const variants = {
-	plain: 'border border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.09] hover:border-white/20',
-	primary: 'bg-cyan-400 text-slate-950 hover:bg-cyan-300 font-semibold',
-	ghost: 'text-slate-300 hover:bg-white/[0.07] hover:text-white',
-	danger: 'border border-red-400/30 bg-red-500/10 text-red-200 hover:bg-red-500/20',
 };
 
 export function Button({ variant = 'plain', size = 'md', className, ...props }: ButtonProps) {
@@ -19,8 +13,8 @@ export function Button({ variant = 'plain', size = 'md', className, ...props }: 
 			type="button"
 			className={cx(
 				'inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-				size === 'sm' ? 'h-7 px-2 text-xs' : 'h-8 px-3 text-sm',
-				variants[variant],
+				buttonSizes[size],
+				buttonVariants[variant],
 				className,
 			)}
 			{...props}
@@ -47,12 +41,12 @@ export function Toggle({ label, description, checked, disabled, onChange }: Togg
 			title={description}
 			disabled={disabled}
 			onClick={() => onChange(!checked)}
-			className="group inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-slate-300 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
+			className="group inline-flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
 		>
 			<span
 				className={cx(
 					'relative h-4 w-7 shrink-0 rounded-full transition-colors',
-					checked ? 'bg-cyan-400' : 'bg-slate-700',
+					checked ? 'bg-cyan-500' : 'bg-slate-300',
 				)}
 			>
 				<span
@@ -70,7 +64,7 @@ export function Toggle({ label, description, checked, disabled, onChange }: Togg
 export function Badge({ children, color }: { children: ReactNode; color?: string }) {
 	return (
 		<span
-			className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[11px] font-medium text-slate-300"
+			className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-card px-2 py-0.5 text-[11px] font-medium text-slate-600"
 			style={
 				color ? { color, borderColor: `${color}55`, background: `${color}14` } : undefined
 			}
@@ -94,7 +88,7 @@ export function SectionTitle({ children, id }: { children: ReactNode; id?: strin
 /** A thin bar for a share, e.g. how busy something is. */
 export function Meter({ share, color }: { share: number; color: string }) {
 	return (
-		<div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+		<div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
 			<div
 				className="h-full rounded-full transition-[width] duration-300"
 				style={{ width: `${Math.min(100, Math.max(0, share * 100))}%`, background: color }}

@@ -17,3 +17,4 @@ if (!window.matchMedia) {
 
 // jsdom doesn't lay anything out, so there's nothing to scroll
 Element.prototype.scrollIntoView ??= () => {};
+window.scrollTo = () => {};

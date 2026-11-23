@@ -1,6 +1,6 @@
 # Adding a system
 
-A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the 3D layout, the simulation, the panels and the challenges all come from the data. `src/systems/rideHailing.ts` is the complete example.
+A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the diagram, the lessons, the simulation, the panels and the challenges all come from the data. `src/systems/rideHailing.ts` is the complete example.
 
 ## 1. Describe it
 
@@ -28,8 +28,8 @@ Use `basis: 'inspired'` and say so in the description unless the design is truly
 {
 	id: 'origin-storage',
 	name: 'Origin storage',
-	kind: 'storage',     // client, cdn, gateway, service, worker, cache, database, queue, stream, storage, external
-	layer: 'data',       // the row it sits in: clients, edge, services, async, data, external
+	kind: 'storage',     // client, cdn, balancer, gateway, service, worker, cache, database, queue, stream, storage, external
+	layer: 'data',       // the row it sits in: clients, balancing, edge, services, async, data, external
 	summary: 'What it does, in a sentence.',
 	why: 'Why the design needs it.',
 	onFailure: 'What users notice when it fails.',
@@ -42,7 +42,7 @@ Use `basis: 'inspired'` and say so in the description unless the design is truly
 }
 ```
 
-`kind` picks the shape and `layer` the row. Within a row, components are placed near what they connect to; declaring them in a sensible order helps when there's a tie.
+`kind` picks how it's drawn (one block with the icon for its kind; a cylinder for a database, a phone for an app) and `layer` the row. Within a row, components are placed near what they connect to; declaring them in a sensible order helps when there's a tie.
 
 ## 3. Journeys
 
@@ -54,8 +54,18 @@ A journey is something people do, with its requests per second at normal traffic
 	name: 'Press play',
 	description: 'The app asks where to stream from, then fetches the first chunks.',
 	rps: 3_000,
+	person: 'Meera',
+	story: 'It’s 8 pm on a Friday. Meera picks a film and presses play.',
 	hops: [
-		{ from: 'tv-app', to: 'api-gateway', label: 'Play this title' },
+		{
+			from: 'tv-app',
+			to: 'api-gateway',
+			label: 'Play this title',
+			example: {
+				says: 'Meera’s TV asks to start the film.',
+				data: { viewer: 'Meera', title: 'Kantara', quality: '4K' },
+			},
+		},
 		{ from: 'api-gateway', to: 'playback-service', label: 'Pick a server' },
 		{ from: 'playback-service', to: 'recommendations', label: 'What’s next', optional: true },
 		{ from: 'tv-app', to: 'edge-cache', label: 'First chunks' },
@@ -65,15 +75,18 @@ A journey is something people do, with its requests per second at normal traffic
 }
 ```
 
-| Hop field  | Meaning                                                                                      |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| `label`    | What's sent, shown in the journey's steps.                                                   |
-| `mode`     | `'async'`: handed off; the user doesn't wait, and failures count as background work failing. |
-| `optional` | The request still succeeds without it (graceful degradation).                                |
-| `onMiss`   | Only happens when `from`, a cache, can't answer.                                             |
-| `share`    | The share of requests that make this call (default 1).                                       |
-| `calls`    | Calls per request, e.g. 5 when asking about five drivers (default 1).                        |
-| `retries`  | How many times a failed call is tried again (0 to 5).                                        |
+| Hop field  | Meaning                                                                                                                                |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `label`    | What's sent, shown in the journey's steps.                                                                                             |
+| `mode`     | `'async'`: handed off; the user doesn't wait, and failures count as background work failing.                                           |
+| `optional` | The request still succeeds without it (graceful degradation).                                                                          |
+| `onMiss`   | Only happens when `from`, a cache, can't answer.                                                                                       |
+| `share`    | The share of requests that make this call (default 1).                                                                                 |
+| `calls`    | Calls per request, e.g. 5 when asking about five drivers (default 1).                                                                  |
+| `retries`  | How many times a failed call is tried again (0 to 5).                                                                                  |
+| `example`  | What one real request sends here, for the lessons: `says` (a sentence) and `data` (the details, with an `answer` for what comes back). |
+
+A journey's `person` and `story` are optional too: with them, its lesson follows that person (“Meera waits for this”) and opens with the scene.
 
 ## 4. Scenarios and challenges
 

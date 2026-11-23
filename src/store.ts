@@ -4,9 +4,8 @@ import { defaultInput, simulate, type SimInput, type SimResult } from '@/sim/eng
 import { challengeInput, meetsGoal } from '@/systems/challenges';
 import { getSystem, systems } from '@/systems';
 
-export type View = '3d' | 'top';
 export type Option = 'autoscale' | 'retries' | 'circuitBreakers' | 'sudden';
-export type Dialog = 'about' | 'tour' | null;
+export type Dialog = 'about' | 'glossary' | null;
 
 /** Instances you can set by hand. */
 export const MAX_INSTANCES = 100;
@@ -26,10 +25,9 @@ type State = {
 	challengeId: string | null;
 	/** Solved challenges, as "system/challenge". */
 	solved: string[];
-	view: View;
+	/** Lessons finished, as "system/lesson". */
+	learned: string[];
 	paused: boolean;
-	/** Side panels hidden, to give the map the whole width (on big screens). */
-	focused: boolean;
 	dialog: Dialog;
 };
 
@@ -47,28 +45,32 @@ type Actions = {
 	leaveChallenge(): void;
 	/** Back to how the scenario (or challenge) started. */
 	reset(): void;
-	setView(view: View): void;
+	/** Marks a lesson of the current system as finished. */
+	markLearned(lessonId: string): void;
+	/** Forgets the finished lessons and solved challenges of the current system. */
+	resetProgress(): void;
 	setPaused(paused: boolean): void;
-	setFocused(focused: boolean): void;
 	openDialog(dialog: Dialog): void;
 };
 
 export type AppState = State & Actions;
 
 const SOLVED_KEY = 'systemscape:solved';
+const LEARNED_KEY = 'systemscape:learned';
 
-function loadSolved(): string[] {
+/** Saved progress: a list of "system/thing" keys. */
+function load(key: string): string[] {
 	try {
-		const saved: unknown = JSON.parse(localStorage.getItem(SOLVED_KEY) ?? '[]');
+		const saved: unknown = JSON.parse(localStorage.getItem(key) ?? '[]');
 		return Array.isArray(saved) ? saved.filter((x) => typeof x === 'string') : [];
 	} catch {
 		return [];
 	}
 }
 
-function saveSolved(solved: string[]) {
+function save(key: string, list: string[]) {
 	try {
-		localStorage.setItem(SOLVED_KEY, JSON.stringify(solved));
+		localStorage.setItem(key, JSON.stringify(list));
 	} catch {
 		// progress just isn't remembered
 	}
@@ -90,11 +92,22 @@ function presetInput(preset: Preset): Pick<SimInput, 'traffic' | 'journeyTraffic
 	};
 }
 
-/** A system as it starts: its first preset, with nothing changed. */
+/** The journey a system starts by following: the one with the most steps, so the most to show. */
+export function startingJourney(system: System) {
+	return [...system.journeys].sort((a, b) => b.hops.length - a.hops.length)[0]!;
+}
+
+/** A system as it starts: its first preset, with nothing changed, following its starting journey. */
 function fresh(system: System) {
 	const preset = system.presets[0]!;
 	const input = { ...defaultInput, ...presetInput(preset) };
-	return { systemId: system.id, presetId: preset.id, input, result: simulate(system, input) };
+	return {
+		systemId: system.id,
+		presetId: preset.id,
+		input,
+		result: simulate(system, input),
+		journeyId: startingJourney(system).id as string | null,
+	};
 }
 
 export function initialState(): State {
@@ -102,12 +115,10 @@ export function initialState(): State {
 		...fresh(systems[0]!),
 		selected: null,
 		hovered: null,
-		journeyId: null,
 		challengeId: null,
-		solved: loadSolved(),
-		view: '3d',
+		solved: load(SOLVED_KEY),
+		learned: load(LEARNED_KEY),
 		paused: prefersReducedMotion(),
-		focused: false,
 		dialog: null,
 	};
 }
@@ -124,7 +135,7 @@ export const useApp = create<AppState>()((set, get) => {
 		const key = active && `${system().id}/${active.id}`;
 		if (active && key && !solved.includes(key) && meetsGoal(result, active)) {
 			solved = [...solved, key];
-			saveSolved(solved);
+			save(SOLVED_KEY, solved);
 		}
 		set({ ...extra, input, result, solved });
 	};
@@ -133,7 +144,7 @@ export const useApp = create<AppState>()((set, get) => {
 		...initialState(),
 
 		selectSystem(id) {
-			set({ ...fresh(getSystem(id)), selected: null, journeyId: null, challengeId: null });
+			set({ ...fresh(getSystem(id)), selected: null, challengeId: null });
 		},
 
 		applyPreset(id) {
@@ -204,7 +215,7 @@ export const useApp = create<AppState>()((set, get) => {
 		},
 
 		leaveChallenge() {
-			set({ ...fresh(system()), challengeId: null, journeyId: null });
+			set({ ...fresh(system()), challengeId: null });
 		},
 
 		reset() {
@@ -218,12 +229,21 @@ export const useApp = create<AppState>()((set, get) => {
 			run({ ...defaultInput, ...presetInput(preset) });
 		},
 
-		setView(view) {
-			set({ view });
+		resetProgress() {
+			const mine = (key: string) => key.startsWith(`${get().systemId}/`);
+			const learned = get().learned.filter((key) => !mine(key));
+			const solved = get().solved.filter((key) => !mine(key));
+			save(LEARNED_KEY, learned);
+			save(SOLVED_KEY, solved);
+			set({ learned, solved });
 		},
 
-		setFocused(focused) {
-			set({ focused });
+		markLearned(lessonId) {
+			const key = `${get().systemId}/${lessonId}`;
+			if (get().learned.includes(key)) return;
+			const learned = [...get().learned, key];
+			save(LEARNED_KEY, learned);
+			set({ learned });
 		},
 
 		setPaused(paused) {

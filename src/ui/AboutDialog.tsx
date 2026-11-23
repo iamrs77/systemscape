@@ -15,7 +15,7 @@ export function AboutDialog() {
 
 	return (
 		<Modal title={system.name} onClose={close}>
-			<div className="space-y-6 text-sm leading-relaxed text-slate-300">
+			<div className="space-y-6 text-sm leading-relaxed text-slate-600">
 				<div className="space-y-2">
 					{system.description.map((paragraph) => (
 						<p key={paragraph}>{paragraph}</p>
@@ -27,8 +27,8 @@ export function AboutDialog() {
 					<dl className="space-y-3">
 						{system.decisions.map((d) => (
 							<div key={d.title}>
-								<dt className="font-medium text-slate-100">{d.title}</dt>
-								<dd className="mt-0.5 text-slate-400">{d.detail}</dd>
+								<dt className="font-medium text-slate-900">{d.title}</dt>
+								<dd className="mt-0.5 text-slate-500">{d.detail}</dd>
 							</div>
 						))}
 					</dl>
@@ -42,7 +42,7 @@ export function AboutDialog() {
 						works out where things settle: how busy each part is, how many requests
 						fail, and how long users wait.
 					</p>
-					<ul className="list-disc space-y-1 pl-5 text-slate-400">
+					<ul className="list-disc space-y-1 pl-5 text-slate-500">
 						<li>
 							Busy parts get slower, sharply as they near full (a queueing model).
 							Past full, they fail the extra requests.
@@ -61,7 +61,7 @@ export function AboutDialog() {
 							is sudden. Databases and streams only change when you change them.
 						</li>
 					</ul>
-					<p className="text-slate-400">
+					<p className="text-slate-500">
 						It’s a model, not a load test: it shows the steady state for the conditions
 						you set, and the numbers are illustrative.
 					</p>
@@ -77,7 +77,7 @@ export function AboutDialog() {
 										href={source.url}
 										target="_blank"
 										rel="noreferrer"
-										className="text-cyan-300 hover:underline"
+										className="text-cyan-700 hover:underline"
 									>
 										{source.title}
 									</a>

@@ -1,115 +1,98 @@
 @import 'tailwindcss';
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
 
+/*
+ * A cool, light page with an indigo accent. The accent (cyan in class names)
+ * is remapped here, so every panel picks it up from the usual class names.
+ */
 @theme {
-	--font-sans:
-		'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-		sans-serif;
+	--font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+
+	--color-paper: #f3f5f9;
+	--color-card: #ffffff;
+	--color-ink: #1d2433;
+
+	--color-cyan-50: #eef0ff;
+	--color-cyan-100: #e0e3ff;
+	--color-cyan-200: #c7ccfe;
+	--color-cyan-300: #a5acfb;
+	--color-cyan-400: #8288f6;
+	--color-cyan-500: #6366f1;
+	--color-cyan-600: #5048e5;
+	--color-cyan-700: #4338ca;
+	--color-cyan-800: #3730a3;
+	--color-cyan-900: #312e81;
 }
 
 :root {
-	color-scheme: dark;
+	color-scheme: light;
 }
 
 body {
-	background: #070b16;
-	color: #e2e8f0;
+	background: var(--color-paper);
+	color: var(--color-ink);
 	-webkit-font-smoothing: antialiased;
 }
 
 :focus-visible {
-	outline: 2px solid #67e8f9;
+	outline: 2px solid var(--color-cyan-600);
 	outline-offset: 2px;
 }
 
-/* labels over the 3D view (they're buttons, so the keyboard reaches them too) */
-.scene-label {
-	position: absolute;
-	top: 0;
-	left: 0;
-	will-change: transform;
-	visibility: hidden;
+/* a card on the page */
+.surface {
+	border: 1px solid #e3e7ef;
+	border-radius: 16px;
+	background: var(--color-card);
+	box-shadow:
+		0 1px 2px rgb(16 24 40 / 0.04),
+		0 8px 24px -8px rgb(16 24 40 / 0.1);
 }
 
-.node-label {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	padding: 3px 8px 4px;
-	border: 1px solid rgb(148 163 184 / 0.16);
-	border-radius: 8px;
-	background: rgb(8 12 26 / 0.78);
-	color: #e2e8f0;
-	font-size: 11px;
-	line-height: 1.25;
-	white-space: nowrap;
-	cursor: pointer;
-	backdrop-filter: blur(4px);
+/* a button that gives a little when clicked */
+.press {
+	border: 1px solid transparent;
+	box-shadow: 0 1px 2px rgb(16 24 40 / 0.08);
 	transition:
-		border-color 150ms,
-		opacity 200ms;
-	user-select: none;
+		transform 80ms,
+		background-color 150ms;
 }
 
-.node-label[data-hidden] {
-	opacity: 0;
-	pointer-events: none;
+.press:active:not(:disabled) {
+	transform: translateY(1px);
 }
 
-.node-label:hover,
-.node-label[data-selected] {
-	border-color: rgb(248 250 252 / 0.75);
+/*
+ * The diagram's labels are buttons inside the SVG. The browser's own focus ring
+ * is drawn in the drawing's units, so it comes out huge and covers the label:
+ * they show focus with their own border instead, for keyboard users.
+ */
+.diagram-label {
+	outline: none;
 }
 
-.node-label__name {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	font-weight: 600;
+.diagram-label:focus-visible .diagram-label__pill {
+	stroke: var(--color-cyan-600);
+	stroke-width: 2.5px;
 }
 
-.node-label__dot {
-	width: 6px;
-	height: 6px;
-	border-radius: 999px;
-	flex-shrink: 0;
+/* behind the diagram */
+.diagram-bg {
+	background: radial-gradient(ellipse at 50% 30%, #ffffff 0%, #f0f3f9 75%);
 }
 
-.node-label__metric {
-	color: #94a3b8;
-	font-size: 10px;
-	font-variant-numeric: tabular-nums;
-}
-
-/* small screens: names only */
-.scene-labels {
-	container-type: size;
-}
-
-@container (max-width: 640px) {
-	.node-label {
-		padding: 2px 6px;
-		font-size: 10px;
-	}
-
-	.node-label__metric,
-	.row-label {
-		display: none;
-	}
-}
-
-.row-label {
-	color: #475569;
-	font-size: 10px;
-	font-weight: 600;
-	letter-spacing: 0.16em;
-	text-transform: uppercase;
-	white-space: nowrap;
-}
-
+/* requests travelling along a connection */
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
 	*::after {
 		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
 	}
 }

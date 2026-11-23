@@ -106,6 +106,23 @@ export const rideHailing: SystemInput = {
 			scaling: 'Runs on drivers’ phones.',
 		},
 		{
+			id: 'load-balancer',
+			name: 'Load balancer',
+			kind: 'balancer',
+			layer: 'balancing',
+			summary:
+				'Receives every request from the apps and passes it to whichever copy of a gateway is least busy.',
+			why: 'The gateways run as several copies. Something has to spread requests across them, and stop sending any to a copy that has crashed.',
+			onFailure:
+				'Nothing gets in: every journey fails at once. That’s why it runs as a few copies itself, each able to take over.',
+			scaling:
+				'It only passes requests on, so it’s fast: a couple of copies handle a whole city. More are added as traffic grows.',
+			capacityPerInstance: 60_000,
+			instances: 2,
+			maxInstances: 8,
+			latencyMs: 1,
+		},
+		{
 			id: 'api-gateway',
 			name: 'API gateway',
 			kind: 'gateway',
@@ -330,24 +347,83 @@ export const rideHailing: SystemInput = {
 			description:
 				'Every online driver’s phone sends its position every few seconds (every 4, in a 2015 Uber talk). The busiest flow by far.',
 			rps: 25_000,
+			person: 'Arjun',
+			story: 'Arjun drives for the app. It’s 9:00 pm and he’s waiting for a ride on 80 Feet Road, Koramangala, with the app open.',
 			hops: [
-				{ from: 'driver-app', to: 'realtime-gateway', label: 'Position update' },
-				{ from: 'realtime-gateway', to: 'location-service', label: 'Pass it on' },
+				{
+					from: 'driver-app',
+					to: 'load-balancer',
+					label: 'Position update',
+					example: {
+						says: 'Every 4 seconds, Arjun’s phone sends where he is, over the connection it keeps open.',
+						data: {
+							driver: 'Arjun',
+							at: '12.9352° N, 77.6245° E',
+							time: '9:00:04 pm',
+						},
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'realtime-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'When Arjun’s phone first connected, the load balancer gave it the least busy copy of the real-time gateway. His updates keep going to that copy.',
+						data: {
+							to: 'Real-time gateway, copy 3 of 4',
+						},
+					},
+				},
+				{
+					from: 'realtime-gateway',
+					to: 'location-service',
+					label: 'Pass it on',
+					example: {
+						says: 'The gateway passes the update straight on to the location service.',
+						data: {
+							driver: 'Arjun',
+							at: '12.9352° N, 77.6245° E',
+						},
+					},
+				},
 				{
 					from: 'location-service',
 					to: 'geo-index',
 					label: 'File under the driver’s map cell',
+					example: {
+						says: 'Arjun’s new position replaces his old one, filed under the hexagon he’s in.',
+						data: {
+							driver: 'Arjun',
+							cell: 'Koramangala #4127',
+							answer: 'saved',
+						},
+					},
 				},
 				{
 					from: 'location-service',
 					to: 'event-stream',
 					label: 'Publish the update',
+					example: {
+						says: 'A note that Arjun moved is added to the event stream, for anything that needs it later.',
+						data: {
+							event: 'driver moved',
+							driver: 'Arjun',
+							cell: 'Koramangala #4127',
+						},
+					},
 					mode: 'async',
 				},
 				{
 					from: 'event-stream',
 					to: 'surge-worker',
 					label: 'Count drivers per area',
+					example: {
+						says: 'The surge calculator reads the note and counts Arjun among the free drivers in his area.',
+						data: {
+							area: 'Koramangala',
+							'free drivers': '38',
+						},
+					},
 					mode: 'async',
 				},
 			],
@@ -358,14 +434,71 @@ export const rideHailing: SystemInput = {
 			description:
 				'A rider enters a destination and sees the fare. Riders check prices far more often than they book.',
 			rps: 1_500,
+			person: 'Rohit',
+			story: 'It’s 9:01 pm. Rohit is in Koramangala 5th Block and needs to get to Indiranagar. He types the address and waits for the price.',
 			hops: [
-				{ from: 'rider-app', to: 'api-gateway', label: 'Get a fare estimate' },
-				{ from: 'api-gateway', to: 'pricing-service', label: 'Work out the fare' },
-				{ from: 'pricing-service', to: 'surge-cache', label: 'Surge for this hexagon' },
+				{
+					from: 'rider-app',
+					to: 'load-balancer',
+					label: 'Get a fare estimate',
+					example: {
+						says: 'Rohit’s app asks how much the ride will cost.',
+						data: {
+							rider: 'Rohit',
+							from: 'Koramangala 5th Block',
+							to: '100 Feet Road, Indiranagar',
+						},
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'api-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'The load balancer sends Rohit’s question to whichever copy of the API gateway is least busy right now.',
+						data: {
+							to: 'API gateway, copy 2 of 3',
+						},
+					},
+				},
+				{
+					from: 'api-gateway',
+					to: 'pricing-service',
+					label: 'Work out the fare',
+					example: {
+						says: 'The gateway checks it’s really Rohit, then passes the question to pricing.',
+						data: {
+							rider: 'Rohit (signed in)',
+							from: 'Koramangala 5th Block',
+							to: '100 Feet Road, Indiranagar',
+							answer: '₹212',
+						},
+					},
+				},
+				{
+					from: 'pricing-service',
+					to: 'surge-cache',
+					label: 'Surge for this hexagon',
+					example: {
+						says: 'Pricing asks how busy Rohit’s area is right now.',
+						data: {
+							cell: 'Koramangala #4127',
+							answer: '1.2× (busy)',
+						},
+					},
+				},
 				{
 					from: 'surge-cache',
 					to: 'trip-db',
 					label: 'Count recent requests nearby',
+					example: {
+						says: 'Only when the cache doesn’t know: count the ride requests in this area in the last 5 minutes.',
+						data: {
+							area: 'Koramangala',
+							since: '8:56 pm',
+							answer: '142 requests',
+						},
+					},
 					onMiss: true,
 					calls: 2,
 				},
@@ -373,6 +506,14 @@ export const rideHailing: SystemInput = {
 					from: 'pricing-service',
 					to: 'eta-service',
 					label: 'Trip length',
+					example: {
+						says: 'How long will this trip take on tonight’s roads? The fare depends on it.',
+						data: {
+							from: 'Koramangala 5th Block',
+							to: 'Indiranagar',
+							answer: '18 min, 6.2 km',
+						},
+					},
 					optional: true,
 				},
 			],
@@ -383,14 +524,69 @@ export const rideHailing: SystemInput = {
 			description:
 				'A rider asks for a ride: dispatch finds nearby drivers, ranks them by arrival time, and offers the ride.',
 			rps: 250,
+			person: 'Rohit',
+			story: 'It’s 9:02 pm. Rohit is happy with the ₹212 fare and taps Book.',
 			hops: [
-				{ from: 'rider-app', to: 'api-gateway', label: 'Request a ride' },
-				{ from: 'api-gateway', to: 'dispatch-service', label: 'Find a driver' },
-				{ from: 'dispatch-service', to: 'geo-index', label: 'Drivers in nearby cells' },
+				{
+					from: 'rider-app',
+					to: 'load-balancer',
+					label: 'Request a ride',
+					example: {
+						says: 'Rohit’s app sends the booking.',
+						data: {
+							rider: 'Rohit',
+							pickup: 'Koramangala 5th Block',
+							drop: '100 Feet Road, Indiranagar',
+							fare: '₹212',
+						},
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'api-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'The load balancer sends the booking to whichever copy of the API gateway is least busy right now: this time, a different one.',
+						data: {
+							to: 'API gateway, copy 1 of 3',
+						},
+					},
+				},
+				{
+					from: 'api-gateway',
+					to: 'dispatch-service',
+					label: 'Find a driver',
+					example: {
+						says: 'The gateway checks it’s really Rohit and hands the booking to Dispatch.',
+						data: {
+							rider: 'Rohit',
+							pickup: '12.9352° N, 77.6245° E',
+						},
+					},
+				},
+				{
+					from: 'dispatch-service',
+					to: 'geo-index',
+					label: 'Drivers in nearby cells',
+					example: {
+						says: 'Which drivers are free in Rohit’s hexagon and the six around it?',
+						data: {
+							cells: 'Koramangala #4127 and 6 around it',
+							answer: '9 free drivers',
+						},
+					},
+				},
 				{
 					from: 'dispatch-service',
 					to: 'eta-service',
 					label: 'Arrival time for the closest drivers',
+					example: {
+						says: 'For the 5 closest drivers: how long would each take to reach Rohit, by road?',
+						data: {
+							drivers: 'Arjun, Meera and 3 more',
+							answer: 'Arjun 3 min, Meera 5 min, …',
+						},
+					},
 					calls: 5,
 					optional: true,
 				},
@@ -398,20 +594,70 @@ export const rideHailing: SystemInput = {
 					from: 'dispatch-service',
 					to: 'realtime-gateway',
 					label: 'Offer the ride to a driver',
+					example: {
+						says: 'Arjun is quickest, so the offer goes to his phone over its open connection.',
+						data: {
+							to: 'Arjun',
+							ride: 'Rohit: Koramangala → Indiranagar',
+							answer: 'accepted after 4 s',
+						},
+					},
 					calls: 1.4,
 				},
-				{ from: 'dispatch-service', to: 'trip-service', label: 'Create the trip' },
-				{ from: 'trip-service', to: 'trip-db', label: 'Save the trip', retries: 2 },
+				{
+					from: 'dispatch-service',
+					to: 'trip-service',
+					label: 'Create the trip',
+					example: {
+						says: 'Arjun said yes, so Dispatch asks for the trip to be created.',
+						data: {
+							rider: 'Rohit',
+							driver: 'Arjun',
+							pickup: 'Koramangala 5th Block',
+						},
+					},
+				},
+				{
+					from: 'trip-service',
+					to: 'trip-db',
+					label: 'Save the trip',
+					retries: 2,
+					example: {
+						says: 'The trip is saved, with its own number, before anyone is told.',
+						data: {
+							trip: 'T-48213',
+							rider: 'Rohit',
+							driver: 'Arjun',
+							status: 'driver on the way',
+							fare: '₹212',
+						},
+					},
+				},
 				{
 					from: 'trip-service',
 					to: 'event-stream',
 					label: 'Trip requested',
+					example: {
+						says: 'A note goes on the event stream: a trip just started in Koramangala.',
+						data: {
+							event: 'trip requested',
+							trip: 'T-48213',
+							area: 'Koramangala',
+						},
+					},
 					mode: 'async',
 				},
 				{
 					from: 'event-stream',
 					to: 'surge-worker',
 					label: 'Count demand per area',
+					example: {
+						says: 'The surge calculator adds it to Koramangala’s demand, which sets the price for the next person.',
+						data: {
+							area: 'Koramangala',
+							'requests in 5 min': '143',
+						},
+					},
 					mode: 'async',
 				},
 			],
@@ -422,19 +668,69 @@ export const rideHailing: SystemInput = {
 			description:
 				'While a rider waits, the driver’s position and arrival time are pushed to their map every few seconds.',
 			rps: 6_000,
+			person: 'Rohit',
+			story: 'Rohit has a driver. For the next 3 minutes he watches Arjun’s car move towards him on the map.',
 			hops: [
-				{ from: 'rider-app', to: 'realtime-gateway', label: 'Keep the map live' },
+				{
+					from: 'rider-app',
+					to: 'load-balancer',
+					label: 'Keep the map live',
+					example: {
+						says: 'Rohit’s app keeps a connection open, so updates arrive without it having to ask.',
+						data: {
+							rider: 'Rohit',
+							watching: 'trip T-48213',
+						},
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'realtime-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'The load balancer gives Rohit’s connection to the least busy copy of the real-time gateway, and keeps it there.',
+						data: {
+							to: 'Real-time gateway, copy 4 of 4',
+						},
+					},
+				},
 				{
 					from: 'realtime-gateway',
 					to: 'trip-service',
 					label: 'Who’s my driver?',
+					example: {
+						says: 'Every so often, the gateway checks which driver is on Rohit’s trip.',
+						data: {
+							trip: 'T-48213',
+							answer: 'Arjun',
+						},
+					},
 					share: 0.1,
 				},
-				{ from: 'realtime-gateway', to: 'geo-index', label: 'Driver’s latest position' },
+				{
+					from: 'realtime-gateway',
+					to: 'geo-index',
+					label: 'Driver’s latest position',
+					example: {
+						says: 'Where is Arjun right now?',
+						data: {
+							driver: 'Arjun',
+							answer: '12.9341° N, 77.6238° E',
+						},
+					},
+				},
 				{
 					from: 'realtime-gateway',
 					to: 'eta-service',
 					label: 'Time to pickup',
+					example: {
+						says: 'How long until Arjun reaches Rohit?',
+						data: {
+							from: 'Arjun',
+							to: 'Rohit',
+							answer: '2 min',
+						},
+					},
 					share: 0.25,
 					optional: true,
 				},
@@ -445,27 +741,101 @@ export const rideHailing: SystemInput = {
 			name: 'End the trip and pay',
 			description:
 				'The driver ends the trip; the fare is saved straight away and the rider is charged in the background.',
+			person: 'Arjun',
+			story: 'At 9:24 pm Arjun drops Rohit on 100 Feet Road, Indiranagar, and taps End trip.',
 			rps: 250,
 			hops: [
-				{ from: 'driver-app', to: 'api-gateway', label: 'End trip' },
-				{ from: 'api-gateway', to: 'trip-service', label: 'Complete the trip' },
-				{ from: 'trip-service', to: 'trip-db', label: 'Save fare and status', retries: 2 },
+				{
+					from: 'driver-app',
+					to: 'load-balancer',
+					label: 'End trip',
+					example: {
+						says: 'Arjun’s phone sends that the trip is over.',
+						data: {
+							driver: 'Arjun',
+							trip: 'T-48213',
+							ended: '9:24 pm',
+						},
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'api-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'The load balancer passes it to whichever copy of the API gateway is least busy.',
+						data: {
+							to: 'API gateway, copy 3 of 3',
+						},
+					},
+				},
+				{
+					from: 'api-gateway',
+					to: 'trip-service',
+					label: 'Complete the trip',
+					example: {
+						says: 'The gateway passes it on, with how far and how long the trip was.',
+						data: {
+							trip: 'T-48213',
+							distance: '6.4 km',
+							time: '19 min',
+						},
+					},
+				},
+				{
+					from: 'trip-service',
+					to: 'trip-db',
+					label: 'Save fare and status',
+					retries: 2,
+					example: {
+						says: 'The final fare and the new status are saved straight away.',
+						data: {
+							trip: 'T-48213',
+							status: 'completed',
+							fare: '₹218',
+						},
+					},
+				},
 				{
 					from: 'trip-service',
 					to: 'event-stream',
 					label: 'Trip completed',
+					example: {
+						says: 'A note goes on the event stream: trip T-48213 is done, and owes ₹218.',
+						data: {
+							event: 'trip completed',
+							trip: 'T-48213',
+							fare: '₹218',
+						},
+					},
 					mode: 'async',
 				},
 				{
 					from: 'event-stream',
 					to: 'payment-service',
 					label: 'Charge the rider',
+					example: {
+						says: 'The payment service picks up the note and gets ready to charge Rohit.',
+						data: {
+							rider: 'Rohit',
+							amount: '₹218',
+							card: '•••• 4417',
+						},
+					},
 					mode: 'async',
 				},
 				{
 					from: 'payment-service',
 					to: 'payment-provider',
 					label: 'Charge the card',
+					example: {
+						says: 'It asks the card company to take the money. If they’re slow, it tries again later, and Rohit never waits.',
+						data: {
+							card: '•••• 4417',
+							amount: '₹218',
+							answer: 'approved',
+						},
+					},
 					mode: 'async',
 					retries: 3,
 				},
