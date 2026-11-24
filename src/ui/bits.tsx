@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
 import { INK } from '@/diagram/geometry';
+import { FAILED } from '@/diagram/labels';
+
+/** The diagram's colour for calls a circuit breaker has stopped. */
+const BREAKER_COLOUR = '#d39a1c';
 import { useApp } from '@/store';
 import { cx } from './cx';
 import { ExpandIcon, PauseIcon, PlayIcon, ShrinkIcon } from './icons';
@@ -63,29 +67,74 @@ const dot = (colour: string) => (
 	</svg>
 );
 
-/** What the marks on the diagram mean. */
-export function Legend() {
+/** A short arrow, drawn the way the diagram draws that kind of call. */
+const arrow = (
+	colour: string,
+	{
+		dashed = false,
+		glow = false,
+		faded = false,
+	}: { dashed?: boolean; glow?: boolean; faded?: boolean } = {},
+) => (
+	<svg width="28" height="12" viewBox="0 0 28 12" aria-hidden="true" opacity={faded ? 0.4 : 1}>
+		{glow && <path d="M3 6h16" stroke="#f6c79c" strokeWidth="8" strokeLinecap="round" />}
+		<path
+			d="M2 6h17"
+			stroke={colour}
+			strokeWidth={glow ? 2.6 : faded ? 1.2 : 1.7}
+			strokeDasharray={dashed ? '4 3' : undefined}
+		/>
+		<path d="M18 2.2 25 6l-7 3.8z" fill={colour} />
+	</svg>
+);
+
+function Key({ mark, children }: { mark: ReactNode; children: ReactNode }) {
 	return (
-		<ul
-			aria-label="Legend"
-			className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600"
-		>
-			<li className="flex items-center gap-1.5">
-				<span className="rounded-full border border-ink bg-white px-1.5 font-mono text-[10px] leading-4 font-semibold text-ink">
-					×3
-				</span>
-				copies running
-			</li>
-			<li className="flex items-center gap-1.5">{dot('#ef8a3d')}request</li>
-			<li className="flex items-center gap-1.5">{dot('#9b80df')}background work</li>
-			<li className="flex items-center gap-1.5">{dot('#d1492f')}failed request</li>
-			<li className="flex items-center gap-1.5">
-				<svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
-					<path d="M1 4h20" stroke={INK} strokeWidth="1.5" strokeDasharray="4 3" />
-				</svg>
-				nobody waits for it
-			</li>
-		</ul>
+		<li className="flex items-center gap-1.5 whitespace-nowrap">
+			{mark}
+			{children}
+		</li>
+	);
+}
+
+/**
+ * What the marks on the diagram mean: the arrows, then the dots moving along
+ * them. A lesson highlights the calls a step explains; Explore freely fades
+ * the calls outside the journey you follow.
+ */
+export function Legend({ where = 'explore' }: { where?: 'lesson' | 'explore' }) {
+	return (
+		<div aria-label="What the marks mean" className="space-y-1 text-[11px] text-slate-600">
+			<ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
+				<li className="font-semibold tracking-wider text-slate-500 uppercase">Arrows</li>
+				<Key mark={arrow(INK)}>a call, pointing at the part asked</Key>
+				{where === 'lesson' ? (
+					<Key mark={arrow(INK, { glow: true })}>the call this step explains</Key>
+				) : (
+					<Key mark={arrow(INK, { faded: true })}>not in the journey you follow</Key>
+				)}
+				<Key mark={arrow(INK, { dashed: true })}>handed off: nobody waits for it</Key>
+				<Key mark={arrow(FAILED)}>most of these calls fail</Key>
+				<Key mark={arrow(BREAKER_COLOUR)}>a circuit breaker has stopped them</Key>
+			</ul>
+			<ul className="flex flex-wrap items-center gap-x-3 gap-y-1">
+				<li className="font-semibold tracking-wider text-slate-500 uppercase">
+					Moving dots
+				</li>
+				<Key mark={dot('#ef8a3d')}>a request</Key>
+				<Key mark={dot('#9b80df')}>background work</Key>
+				<Key mark={dot('#d1492f')}>a failed request</Key>
+				<Key
+					mark={
+						<span className="rounded-full border border-ink bg-white px-1.5 font-mono text-[10px] leading-4 font-semibold text-ink">
+							×3
+						</span>
+					}
+				>
+					copies running
+				</Key>
+			</ul>
+		</div>
 	);
 }
 
@@ -124,6 +173,7 @@ export function DiagramFrame({
 	controls,
 	tools,
 	fill,
+	legend,
 }: {
 	children: ReactNode;
 	over?: ReactNode;
@@ -133,6 +183,8 @@ export function DiagramFrame({
 	tools?: ReactNode;
 	/** Offers a button to show it on the whole screen (see useFullScreen). */
 	fill?: { full: boolean; toggle(): void };
+	/** Which marks the legend explains: a lesson's highlights, or Explore's faded calls. */
+	legend?: 'lesson' | 'explore';
 }) {
 	const paused = useApp((s) => s.paused);
 	const setPaused = useApp((s) => s.setPaused);
@@ -164,8 +216,8 @@ export function DiagramFrame({
 				<div className="h-full px-2 pt-2">{children}</div>
 			</div>
 			{controls}
-			<div className="flex items-center gap-3 border-t border-slate-200 bg-card/80 px-3 py-1.5">
-				<Legend />
+			<div className="flex items-end gap-3 border-t border-slate-200 bg-card/80 px-3 py-2">
+				<Legend where={legend} />
 				<div className="ml-auto flex shrink-0 items-center gap-1">
 					<FrameButton
 						icon={

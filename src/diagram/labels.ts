@@ -37,7 +37,8 @@ export function labelText(
 		} else {
 			line = `${formatUtilization(utilization)} busy`;
 			if (status === 'overloaded') tone = 'bad';
-			else if (status === 'busy') tone = 'busy';
+			// behind is late work, not failing work
+			else if (status === 'busy' || status === 'behind') tone = 'busy';
 		}
 	}
 	const spokenState = isApp

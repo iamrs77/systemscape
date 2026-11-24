@@ -1,4 +1,5 @@
 import type { System } from '@/model/schema';
+import { trackTerms } from './terms';
 
 /**
  * The words system design uses, each explained in a line for someone new to
@@ -19,7 +20,7 @@ export type Term = {
 	forms: string[];
 };
 
-export const glossary: Term[] = [
+const sharedTerms: Term[] = [
 	{
 		id: 'request',
 		term: 'Request',
@@ -272,7 +273,7 @@ export const glossary: Term[] = [
 		id: 'hash',
 		term: 'Hash',
 		meaning:
-			'A number worked out from a value, like a shopper’s id. It looks random, but it’s always the same for the same value, so it spreads things evenly, like shoppers between shards.',
+			'A number or code worked out from a value, like a shopper’s id or a password. The same value always gives the same hash, so it spreads things evenly, like shoppers between shards. A good one can’t be worked backwards, which is why passwords are kept as hashes.',
 		forms: ['hash', 'hashes'],
 	},
 	{
@@ -449,7 +450,7 @@ export const glossary: Term[] = [
 		id: 'encoding',
 		term: 'Encoding',
 		meaning:
-			'Turning a video into a different size or quality. One film is encoded into many versions, so every screen and internet speed gets one that fits.',
+			'Turning data into a different form. A video is encoded into many sizes and qualities, so every screen and internet speed gets one that fits; bytes can be encoded as text, like Base64. Anyone can turn it back: it isn’t encryption.',
 		like: 'Printing the same photo as a passport photo, a postcard and a poster.',
 		forms: ['encoding', 'encode', 'encoded', 'encoder', 'encoders'],
 	},
@@ -548,7 +549,7 @@ export const glossary: Term[] = [
 		id: 'nosql',
 		term: 'NoSQL',
 		meaning:
-			'Any database that doesn’t keep data in tables: documents, keys and values, and more. Many are built to spread over many machines.',
+			'Any database that doesn’t use SQL’s linked tables, with a fixed schema and joins: documents, keys and values, wide columns, graphs. Many are built to spread over many machines.',
 		forms: ['nosql'],
 	},
 	{
@@ -578,9 +579,9 @@ export const glossary: Term[] = [
 		id: 'locks',
 		term: 'Lock',
 		meaning:
-			'A mark a transaction puts on a row while it changes it. Other transactions that want the same row wait until it’s done.',
+			'A claim on something, like a row, that makes anyone else who wants it wait until it’s let go. A transaction locks the rows it changes; a lock held across machines works the same way.',
 		like: 'An engaged sign on a changing room door.',
-		forms: ['locks', 'locked', 'locking'],
+		forms: ['lock', 'locks', 'locked', 'locking'],
 	},
 	{
 		id: 'isolation',
@@ -601,7 +602,7 @@ export const glossary: Term[] = [
 		id: 'leader',
 		term: 'Leader',
 		meaning:
-			'The one copy of a database that takes changes. It sends each change on to its followers.',
+			'The copy of a database that takes changes and sends each one on to its followers. Usually there’s one; some designs have several.',
 		forms: ['leader', 'leaders'],
 	},
 	{
@@ -636,7 +637,7 @@ export const glossary: Term[] = [
 		id: 'uuid',
 		term: 'UUID',
 		meaning:
-			'A random ID, so long that two made anywhere, at any time, are never the same. No one has to hand them out.',
+			'A 128-bit ID that any machine can make without asking anyone, so long that two are never the same. Version 4 is random; version 7 starts with the time, so new ones sort in order.',
 		forms: ['uuid', 'uuids'],
 	},
 	{
@@ -766,7 +767,7 @@ export const glossary: Term[] = [
 		id: 'jitter',
 		term: 'Jitter',
 		meaning:
-			'A small random extra added to a wait, so that many callers don’t all try again at the very same moment.',
+			'Randomness added to a wait, so that many callers don’t all try again at the very same moment. It can be a small random extra, or, with full jitter, the whole wait picked at random, from nothing up to the backoff.',
 		forms: ['jitter'],
 	},
 	{
@@ -905,7 +906,190 @@ export const glossary: Term[] = [
 		like: 'Local warehouses that keep popular items near you, so delivery is quick.',
 		forms: ['cdn', 'cdns'],
 	},
+	{
+		id: 'proxy',
+		term: 'Proxy',
+		meaning:
+			'A program that stands in the middle of a conversation, passing requests on and answers back, and able to check, change, count or turn them away on the way.',
+		like: 'A secretary who takes every call and puts it through, or doesn’t.',
+		forms: ['proxy', 'proxies'],
+	},
+	{
+		id: 'reverse-proxy',
+		term: 'Reverse proxy',
+		meaning:
+			'A server that takes requests in place of the servers behind it, passes each one on, and passes the answer back. A load balancer is one.',
+		like: 'A receptionist who takes every visitor and walks them to the right office.',
+		forms: ['reverse proxy', 'reverse proxies'],
+	},
+	{
+		id: 'round-robin',
+		term: 'Round robin',
+		meaning:
+			'Taking turns: the first request to the first copy, the next to the second, and round again.',
+		like: 'Dealing cards around a table.',
+		forms: ['round robin'],
+	},
+	{
+		id: 'weighted-round-robin',
+		term: 'Weighted round robin',
+		meaning:
+			'Taking turns, but each copy has a weight, and a copy with twice the weight gets twice as many requests.',
+		forms: ['weighted round robin'],
+	},
+	{
+		id: 'least-connections',
+		term: 'Least connections',
+		meaning:
+			'Sending each request to the copy with the fewest requests still open. A slow copy keeps its count high, so it gets fewer.',
+		like: 'Joining the shortest queue at the supermarket.',
+		forms: ['least connections', 'weighted least connections'],
+	},
+	{
+		id: 'least-response-time',
+		term: 'Least response time',
+		meaning:
+			'Sending each request to the copy that has been answering fastest. The load balancer has to time every answer.',
+		forms: ['least response time'],
+	},
+	{
+		id: 'power-of-two-choices',
+		term: 'Power of two choices',
+		meaning:
+			'Picking two copies at random, and sending the request to the less busy of the two. Nearly as good as checking every copy, and much cheaper.',
+		forms: ['power of two choices'],
+	},
+	{
+		id: 'outlier-detection',
+		term: 'Outlier detection',
+		meaning:
+			'A load balancer watching real answers, and taking out for a while a copy whose answers keep failing. Also called a passive health check.',
+		forms: ['outlier detection'],
+	},
+	{
+		id: 'gray-failure',
+		term: 'Gray failure',
+		meaning:
+			'A part that’s slow or half-working rather than down, so it passes its health checks while users suffer. Hard to spot.',
+		forms: ['gray failure', 'gray failures'],
+	},
+	{
+		id: 'noisy-neighbour',
+		term: 'Noisy neighbour',
+		meaning: 'Another program on the same machine using so much of it that yours slows down.',
+		forms: ['noisy neighbour', 'noisy neighbours'],
+	},
+	{
+		id: 'slow-start',
+		term: 'Slow start',
+		meaning:
+			'Sending a newly added copy a few requests at first, and more over the next minute, while it warms up.',
+		forms: ['slow start'],
+	},
+	{
+		id: 'connection-draining',
+		term: 'Connection draining',
+		meaning:
+			'Before a copy is removed, sending it no new requests, but letting it finish the ones it has. No one sees an error.',
+		like: 'A shop that locks the door at closing time, but serves the people already inside.',
+		forms: ['connection draining'],
+	},
+	{
+		id: 'rolling-deploy',
+		term: 'Rolling deploy',
+		meaning:
+			'Putting out a new version one copy at a time: drain it, update it, put it back, then the next. The app keeps working throughout.',
+		forms: ['rolling deploy', 'rolling deploys'],
+	},
+	{
+		id: 'canary',
+		term: 'Canary',
+		meaning:
+			'A new version given to a small share of users first, like 5%. If it misbehaves, only a few people notice, and it’s rolled back.',
+		like: 'Miners once took a canary underground: if it got ill, they left before it hurt them.',
+		forms: ['canary', 'canaries'],
+	},
+	{
+		id: 'virtual-address',
+		term: 'Virtual address',
+		meaning:
+			'An address that can move between two machines. When the working one breaks, its standby takes the address over, so callers never notice.',
+		forms: ['virtual address'],
+	},
+	{
+		id: 'layer-4',
+		term: 'Layer 4',
+		meaning:
+			'The connection level of the network: which computer and which port. A layer 4 load balancer passes connections on without reading what’s inside.',
+		forms: ['layer 4'],
+	},
+	{
+		id: 'layer-7',
+		term: 'Layer 7',
+		meaning:
+			'The level of the request itself: the page asked for, the headers, the cookies. A layer 7 load balancer reads every request.',
+		forms: ['layer 7'],
+	},
+	{
+		id: 'https',
+		term: 'HTTPS',
+		meaning:
+			'Web requests sent encrypted, using TLS, so nobody on the way can read or change them. The server proves who it is with a certificate.',
+		forms: ['https', 'tls'],
+	},
+	{
+		id: 'certificate',
+		term: 'Certificate',
+		meaning:
+			'A file that proves a server really is shop.example.com, signed by a company browsers trust. It has to be renewed every few months.',
+		forms: ['certificate', 'certificates'],
+	},
+	{
+		id: 'tls-termination',
+		term: 'TLS termination',
+		meaning:
+			'Decrypting HTTPS at the load balancer, once, so the servers behind it don’t each have to.',
+		forms: ['tls termination'],
+	},
+	{
+		id: 'cookie',
+		term: 'Cookie',
+		meaning:
+			'A small note a website asks the browser or app to keep, and send back with every request, like which copy served you last.',
+		forms: ['cookie', 'cookies'],
+	},
+	{
+		id: 'dns',
+		term: 'DNS',
+		meaning:
+			'The internet’s phone book: it turns a name like shop.example.com into the address of a computer.',
+		forms: ['dns'],
+	},
+	{
+		id: 'region',
+		term: 'Region',
+		meaning:
+			'A group of data centres in one part of the world, like Mumbai or Frankfurt. Each has several zones.',
+		forms: ['region', 'regions'],
+	},
+	{
+		id: 'geodns',
+		term: 'GeoDNS',
+		meaning:
+			'DNS that answers with a different address depending on where you are, to send you to the nearest region.',
+		forms: ['geodns'],
+	},
+	{
+		id: 'anycast',
+		term: 'Anycast',
+		meaning:
+			'Many places announcing the same address, so the internet’s routing takes each user to the nearest one.',
+		forms: ['anycast'],
+	},
 ];
+
+/** Every word explained: the shared ones, and each track's own. */
+export const glossary: Term[] = [...sharedTerms, ...trackTerms];
 
 export const termById = new Map(glossary.map((t) => [t.id, t]));
 

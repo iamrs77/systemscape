@@ -20,6 +20,12 @@ export const LOT_SIZE = 3.7;
 export const BOUNDARY_GAP = 3;
 /** Traffic keeps to its own side of the road. */
 export const LANE_OFFSET = 0.28;
+/** How far apart the calls leaving or entering one side of a part start. */
+const PORT_GAP = 0.45;
+/** How far apart calls sharing a street run side by side. */
+const TRACK_GAP = 0.45;
+/** The least room between calls running up and down side by side. */
+const MIN_APART = 0.35;
 
 export type NodeLayout = { id: string; layer: Layer; column: number; position: Vec3 };
 
@@ -135,16 +141,28 @@ export function layoutSystem(system: System): SystemLayout {
 			const a = nodes[hop.from]!;
 			const b = nodes[hop.to]!;
 			const road = route(a, b, rowOf.get(a.layer)!, rowOf.get(b.layer)!, avenues);
-			edges.set(key, {
-				key,
-				from: hop.from,
-				to: hop.to,
-				mode: hop.mode,
-				road,
-				lane: keepRight(road),
-			});
+			edges.set(key, { key, from: hop.from, to: hop.to, mode: hop.mode, road, lane: road });
 		}
 	}
+	// calls that would be drawn on top of each other are spread apart
+	const laid = [...edges.values()];
+	const spread = spreadOut(
+		laid.map((e) => e.road),
+		laid.map((e) => [nodes[e.from]!, nodes[e.to]!]),
+		// the streets between and beside the rows, where calls run sideways
+		// (the street below one row is the street above the next: counted once)
+		[
+			...new Map(
+				centred
+					.flatMap((z) => [z - ROW_GAP / 2, z + ROW_GAP / 2])
+					.map((z) => [z.toFixed(6), z] as const),
+			).values(),
+		],
+	);
+	laid.forEach((e, i) => {
+		e.road = spread[i]!;
+		e.lane = spread[i]!;
+	});
 
 	const margin = 1.2;
 	return {
@@ -219,19 +237,155 @@ function tidy(points: Vec2[]): Vec2[] {
 	});
 }
 
-/** The same route shifted to one side, so traffic each way has its own lane. */
-function keepRight(road: Vec2[]): Vec2[] {
-	const normal = (p: Vec2, q: Vec2): Vec2 => {
-		const dx = Math.sign(q[0] - p[0]);
-		const dz = Math.sign(q[1] - p[1]);
-		return [-dz * LANE_OFFSET, dx * LANE_OFFSET];
-	};
-	return road.map((p, i) => {
-		const before: Vec2 = i > 0 ? normal(road[i - 1]!, p) : [0, 0];
-		const after: Vec2 = i < road.length - 1 ? normal(p, road[i + 1]!) : [0, 0];
-		// at a corner, shift by both segments' sides
-		return [p[0] + before[0] + after[0], p[1] + before[1] + after[1]] as Vec2;
+/**
+ * Spreads apart calls that would be drawn on top of each other. Those leaving
+ * or entering the same side of a part do it at points spread along that side,
+ * in the order of where they go, so they don't cross there. Those running
+ * along the same street, or up the same avenue, each get a track of their own,
+ * side by side: only as many tracks as there are calls overlapping.
+ */
+function spreadOut(roads: Vec2[][], ends: [NodeLayout, NodeLayout][], streets: number[]): Vec2[][] {
+	// a straight line between two parts gets a step in the street between them,
+	// so its two ends can move apart
+	const out = roads.map((road) => {
+		const copy = road.map((p) => [p[0], p[1]] as Vec2);
+		if (copy.length !== 2) return copy;
+		const mid = (copy[0]![1] + copy[1]![1]) / 2;
+		return [copy[0]!, [copy[0]![0], mid] as Vec2, [copy[1]![0], mid] as Vec2, copy[1]!];
 	});
+
+	// where each call meets a part: the side it leaves by, or arrives at
+	const sides = new Map<string, { road: number; start: boolean; toward: number }[]>();
+	const meet = (key: string, item: { road: number; start: boolean; toward: number }) =>
+		sides.set(key, [...(sides.get(key) ?? []), item]);
+	out.forEach((road, i) => {
+		const [a, b] = ends[i]!;
+		meet(`${a.id}|${Math.sign(road[1]![1] - road[0]![1])}`, {
+			road: i,
+			start: true,
+			toward: b.position[0],
+		});
+		meet(`${b.id}|${Math.sign(road.at(-2)![1] - road.at(-1)![1])}`, {
+			road: i,
+			start: false,
+			toward: a.position[0],
+		});
+	});
+	for (const group of sides.values()) {
+		if (group.length < 2) continue;
+		group.sort(
+			(p, q) => p.toward - q.toward || p.road - q.road || Number(q.start) - Number(p.start),
+		);
+		const gap = Math.min(PORT_GAP, (LOT_SIZE * 0.5) / (group.length - 1));
+		group.forEach((item, k) => {
+			const dx = (k - (group.length - 1) / 2) * gap;
+			const road = out[item.road]!;
+			// the end point, and the corner where it turns into the street
+			const [end, corner] = item.start ? [0, 1] : [road.length - 1, road.length - 2];
+			road[end]![0] += dx;
+			road[corner]![0] += dx;
+		});
+	}
+
+	// calls side by side: along each street, then up and down; twice, so each
+	// tidies what the other moved
+	for (let pass = 0; pass < 2; pass++) {
+		alongStreets(out, streets);
+		upAndDown(out);
+	}
+	return out.map(tidy);
+}
+
+/** The stretches of a route that run along one axis: 1 for sideways, 0 for up and down. */
+function stretches(roads: Vec2[][], axis: 0 | 1) {
+	const other = axis === 1 ? 0 : 1;
+	const found: { road: number; i: number; at: number; lo: number; hi: number }[] = [];
+	roads.forEach((road, r) => {
+		for (let i = 1; i < road.length; i++) {
+			const p = road[i - 1]!;
+			const q = road[i]!;
+			if (Math.abs(p[axis] - q[axis]) > 1e-9 || Math.abs(p[other] - q[other]) < 1e-9)
+				continue;
+			found.push({
+				road: r,
+				i,
+				at: p[axis],
+				lo: Math.min(p[other], q[other]),
+				hi: Math.max(p[other], q[other]),
+			});
+		}
+	});
+	return found;
+}
+
+/**
+ * Each street's sideways stretches, short steps included, get tracks of their
+ * own, evenly spaced about the street's middle: the fewest tracks that keep
+ * overlapping stretches apart.
+ */
+function alongStreets(roads: Vec2[][], streets: number[]) {
+	const byStreet = new Map<number, ReturnType<typeof stretches>>();
+	for (const stretch of stretches(roads, 1)) {
+		const street = streets.reduce((best, z) =>
+			Math.abs(z - stretch.at) < Math.abs(best - stretch.at) ? z : best,
+		);
+		byStreet.set(street, [...(byStreet.get(street) ?? []), stretch]);
+	}
+	for (const [street, list] of byStreet) {
+		if (list.length < 2) continue;
+		list.sort((p, q) => p.lo - q.lo || p.hi - q.hi || p.road - q.road);
+		const trackEnds: number[] = [];
+		const tracks = list.map((stretch) => {
+			let t = trackEnds.findIndex((end) => end < stretch.lo - 0.4);
+			if (t === -1) {
+				t = trackEnds.length;
+				trackEnds.push(stretch.hi);
+			} else trackEnds[t] = stretch.hi;
+			return t;
+		});
+		list.forEach((stretch, k) => {
+			const z = street + (tracks[k]! - (trackEnds.length - 1) / 2) * TRACK_GAP;
+			const road = roads[stretch.road]!;
+			road[stretch.i - 1]![1] = z;
+			road[stretch.i]![1] = z;
+		});
+	}
+}
+
+/**
+ * Up-and-down stretches that would run too close together, side by side for
+ * part of their length, are pushed apart, keeping their order left to right.
+ */
+function upAndDown(roads: Vec2[][]) {
+	const list = stretches(roads, 0).sort((p, q) => p.at - q.at || p.road - q.road);
+	const overlap = (p: (typeof list)[number], q: (typeof list)[number]) =>
+		p.road !== q.road && Math.min(p.hi, q.hi) - Math.max(p.lo, q.lo) > 0;
+	// near neighbours, a cluster at a time
+	let start = 0;
+	while (start < list.length) {
+		let end = start + 1;
+		while (end < list.length && list[end]!.at - list[end - 1]!.at < MIN_APART) end++;
+		const cluster = list.slice(start, end);
+		start = end;
+		if (cluster.length < 2) continue;
+		const placed = cluster.map((stretch) => stretch.at);
+		cluster.forEach((stretch, k) => {
+			for (let j = 0; j < k; j++) {
+				if (overlap(cluster[j]!, stretch))
+					placed[k] = Math.max(placed[k]!, placed[j]! + MIN_APART);
+			}
+		});
+		// keep the cluster where it was, on average
+		const shift =
+			cluster.reduce((sum, stretch) => sum + stretch.at, 0) / cluster.length -
+			placed.reduce((sum, x) => sum + x, 0) / placed.length;
+		cluster.forEach((stretch, k) => {
+			const x = placed[k]! + shift;
+			const road = roads[stretch.road]!;
+			road[stretch.i - 1]![0] = x;
+			road[stretch.i]![0] = x;
+		});
+	}
 }
 
 /** The length of a route, and the point a given distance along it. */
@@ -369,7 +523,7 @@ export function journeyComponents(system: System, journeyId: string): Set<string
 	return new Set(journey?.hops.flatMap((h) => [h.from, h.to]) ?? []);
 }
 
-/** Overloaded or down: it stands out even when it isn't part of the followed journey. */
+/** Overloaded, behind or down: it stands out even when it isn't part of the followed journey. */
 export function inTrouble(status: Status) {
-	return status === 'overloaded' || status === 'down';
+	return status === 'overloaded' || status === 'behind' || status === 'down';
 }

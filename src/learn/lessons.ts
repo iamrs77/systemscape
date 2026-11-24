@@ -50,6 +50,8 @@ export type LessonStep = {
 	timeline?: boolean;
 	/** What one real request sends at this step, and what comes back. */
 	example?: { says: string; data: [string, string][] };
+	/** The choices side by side, and when each one fits. */
+	compare?: { title: string; rows: [string, string][] };
 	/** The part this step is about, to read more on. */
 	about?: string;
 	/** Where to go from the last step. */
@@ -176,11 +178,16 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  * first app (the riders', the viewers'), rather than a back-office tool's.
  */
 export function mainJourney(system: System) {
-	const app = system.components.find((c) => c.kind === 'client')?.id;
-	// journeys switched off on an ordinary day are alternatives, kept for teaching
+	// journeys switched off on an ordinary day are alternatives, kept for teaching:
+	// never the one to start on
 	const on = (id: string) => (system.presets[0]?.journeyTraffic[id] ?? 1) > 0;
-	const fromApp = system.journeys.filter((j) => j.hops[0]!.from === app && on(j.id));
-	return [...(fromApp.length ? fromApp : system.journeys)].sort(
+	const running = system.journeys.filter((j) => on(j.id));
+	// the first app that something running starts from
+	const app = system.components.find(
+		(c) => c.kind === 'client' && running.some((j) => j.hops[0]!.from === c.id),
+	)?.id;
+	const fromApp = running.filter((j) => j.hops[0]!.from === app);
+	return [...(fromApp.length ? fromApp : running.length ? running : system.journeys)].sort(
 		(a, b) => b.hops.length - a.hops.length,
 	)[0]!;
 }

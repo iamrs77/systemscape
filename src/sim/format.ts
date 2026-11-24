@@ -48,19 +48,44 @@ export function perMinute(rps: number) {
 	const count =
 		n >= 1e6
 			? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')} million`
-			: Math.round(n).toLocaleString('en-US');
+			: n < 10
+				? n.toFixed(1).replace(/\.0$/, '')
+				: Math.round(n).toLocaleString('en-US');
 	return `${count} every minute`;
 }
 
-/** How many fail, as a simple fraction: 20% succeeding is “4 in 5 fail”. */
+/**
+ * How many fail, as a simple fraction: 20% succeeding is “4 in 5 fail”, 1.5%
+ * failing “about 1 in 67 fail”, 5% succeeding “only 1 in 20 works”.
+ */
 export function feelOfShare(success: number) {
 	if (success >= 0.999) return 'every one';
 	if (success >= 0.99) return 'almost every one';
 	if (success < 0.001) return 'all fail';
 	if (success < 0.01) return 'almost all fail';
 	const fail = 1 - success;
-	const [best] = [2, 3, 4, 5, 6, 8, 10, 20, 50, 100]
-		.map((n) => ({ n, k: Math.max(1, Math.round(fail * n)) }))
-		.sort((a, b) => Math.abs(a.k / a.n - fail) - Math.abs(b.k / b.n - fail) || a.n - b.n);
-	return `${best!.k} in ${best!.n} fail`;
+	// one in so many: a few that fail, or a few that work
+	const oneIn = (share: number) => {
+		const n = Math.round(1 / share);
+		return { n, exact: Math.abs(1 / n - share) < 0.001 };
+	};
+	if (fail <= 0.1) {
+		const { n, exact } = oneIn(fail);
+		return `${exact ? '' : 'about '}1 in ${n} fail`;
+	}
+	if (success <= 0.1) {
+		const { n, exact } = oneIn(success);
+		return `only ${exact ? '' : 'about '}1 in ${n} works`;
+	}
+	// an exact simple fraction, or the closest simple one if it's close, or failing that, the closest
+	const fit = (n: number) => {
+		const k = Math.min(n - 1, Math.max(1, Math.round(fail * n)));
+		return { n, k, off: Math.abs(k / n - fail) };
+	};
+	const simple = [2, 3, 4, 5, 6, 8, 10].map(fit);
+	const best =
+		simple.find((f) => f.off < 0.001) ??
+		simple.filter((f) => f.off <= 0.035).sort((a, b) => a.off - b.off || a.n - b.n)[0] ??
+		[2, 3, 4, 5, 6, 8, 10, 20, 50, 100].map(fit).sort((a, b) => a.off - b.off)[0]!;
+	return `${best.off < 0.001 ? '' : 'about '}${best.k} in ${best.n} fail`;
 }

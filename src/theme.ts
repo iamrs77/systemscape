@@ -7,6 +7,7 @@ export const statusColor: Record<Status, string> = {
 	idle: '#94a3b8',
 	ok: '#3f9a5f',
 	busy: '#d39a1c',
+	behind: '#c2741a',
 	overloaded: '#d1492f',
 	down: '#64748b',
 };
@@ -15,6 +16,7 @@ export const statusLabel: Record<Status, string> = {
 	idle: 'Idle',
 	ok: 'Healthy',
 	busy: 'Busy',
+	behind: 'Behind',
 	overloaded: 'Overloaded',
 	down: 'Down',
 };

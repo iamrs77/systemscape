@@ -217,7 +217,8 @@ export function Diagram({
 		return { row, count, at, text: layerLabel[row.layer].toUpperCase() };
 	});
 
-	// a box round what this company runs, and one round other companies' systems
+	// a box round what this company runs, named, and one round other companies'
+	// systems, which its colour sets apart without a name
 	// a row name's capitals, with their letter spacing, are about 0.4 wide each
 	const tierLeft = Math.min(...tiers.map((t) => t.at[0] - t.text.length * 0.4 - 0.5));
 	const regionLeft = (bare ? minX : Math.min(minX, tierLeft)) - 0.3;
@@ -226,7 +227,7 @@ export function Diagram({
 		? [
 				{
 					id: 'ours',
-					name: 'OUR SYSTEM',
+					name: 'OUR SYSTEM' as string | null,
 					top: maxZ + 0.6,
 					bottom: layout.boundary.z + 0.4,
 					colour: '#5048e5',
@@ -234,7 +235,7 @@ export function Diagram({
 				},
 				{
 					id: 'theirs',
-					name: 'OUTSIDE OUR SYSTEM: OTHER COMPANIES',
+					name: null,
 					top: layout.boundary.z - 0.4,
 					bottom: minZ - 0.2,
 					colour: '#c2416a',
@@ -253,7 +254,7 @@ export function Diagram({
 			// a region's name tag sits on its top edge: leave clear room above it, not a sliver
 			...regions.flatMap((r): Pt[] => {
 				const [x, edge] = project(regionLeft, r.top);
-				return [[x, edge - 1.2], project(regionRight, r.bottom)];
+				return [[x, r.name === null ? edge : edge - 1.2], project(regionRight, r.bottom)];
 			}),
 			...parts.map((p) => p.labelAt),
 			...labels.flatMap((l) => [
@@ -705,7 +706,8 @@ export function Diagram({
 
 				{/* the region boxes' name tags, over any arrow that passes */}
 				{!bare &&
-					regions.map((region) => {
+					regions.flatMap((region) => {
+						if (region.name === null) return [];
 						// a name tag on the box's top edge, on a solid background, drawn over the
 						// arrows so none crosses it
 						const [x, y] = project(regionLeft + 0.5, region.top);

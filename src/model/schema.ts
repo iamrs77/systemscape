@@ -77,19 +77,45 @@ export const hopSchema = z.object({
 	 * The calls after it, from where it leads, are a share of that share.
 	 */
 	share: z.number().min(0).max(1).default(1),
+	/**
+	 * One of the copies a load balancer chooses between. The hops marked
+	 * `pick` from the same part share its requests by the load balancer's rule
+	 * (`SimInput.balancing`), not by their `share`; their shares, which add up
+	 * to 1, are only used when it picks by hashing the address: the part of the
+	 * users whose address lands on that copy.
+	 */
+	pick: z.boolean().default(false),
 	/** Calls per request, e.g. 3 when a request asks three drivers. */
 	calls: z.number().positive().default(1),
 	/**
 	 * How much work each call is for the part it calls, compared with an
 	 * ordinary request: 20 for a search that reads every row, or an upload
 	 * that keeps a server busy. It takes that much more capacity, and time.
+	 * 0 for a step that's only the network, like a handshake: it takes
+	 * `travelMs` and nothing else.
 	 */
-	work: z.number().positive().default(1),
+	work: z.number().nonnegative().default(1),
 	/**
 	 * Time the message spends travelling, there and back, on top of the
 	 * part's own time: about 150 ms for a phone on mobile data.
 	 */
 	travelMs: z.number().nonnegative().default(0),
+	/**
+	 * Calls made at the same time, from the same part: the hops with the same
+	 * `together` name are sent at once, and the caller waits for them
+	 * together, for the slowest, or for the first `need` answers.
+	 */
+	together: z.string().optional(),
+	/**
+	 * How many of the calls made `together` must answer: 2 of 3 for a quorum.
+	 * All of them when not set.
+	 */
+	need: z.number().int().positive().optional(),
+	/**
+	 * Every copy of the part it's sent to applies it, like a change copied to
+	 * each read copy, instead of the copies sharing the calls.
+	 */
+	everyCopy: z.boolean().default(false),
 	/** How many times the caller tries again when the call fails. */
 	retries: z.number().int().min(0).max(10).default(0),
 	/** The request still succeeds without it (graceful degradation), e.g. a ride shown without an ETA. */

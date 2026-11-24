@@ -1,5 +1,5 @@
 import type { System } from '@/model/schema';
-import type { SimInput, SimResult } from './engine';
+import type { Balancing, SimInput, SimResult } from './engine';
 import type { Insight } from './insights';
 import { MAX_INSTANCES } from './scenario';
 
@@ -9,7 +9,8 @@ const COMFORTABLE = 0.7;
 export type Change =
 	| { kind: 'copies'; componentId: string; instances: number }
 	| { kind: 'bring-back'; componentId: string }
-	| { kind: 'switch'; option: 'autoscale' | 'retries' | 'circuitBreakers'; on: boolean };
+	| { kind: 'switch'; option: 'autoscale' | 'retries' | 'circuitBreakers'; on: boolean }
+	| { kind: 'balancing'; balancerId: string; rule: Balancing };
 
 /** Something to try for a problem: what it says on the button, and what it changes. */
 export type Fix = { label: string; change: Change };
@@ -65,10 +66,25 @@ export function fixesFor(
 				change: { kind: 'bring-back', componentId: component.id },
 			});
 			if (breakersHelp) fixes.push(breakers);
-		} else if (component && state?.status === 'overloaded') {
+		} else if (component && (state?.status === 'overloaded' || state?.status === 'behind')) {
 			if (component.kind === 'external') {
 				if (breakersHelp) fixes.push(breakers);
 			} else {
+				// a copy a load balancer takes turns with: sending it fewer may be enough
+				const balancers = new Set(
+					system.journeys.flatMap((j) =>
+						j.hops.filter((h) => h.pick && h.to === component.id).map((h) => h.from),
+					),
+				);
+				for (const balancerId of balancers) {
+					const rule = input.balancing?.[balancerId] ?? 'round-robin';
+					if (rule === 'least-connections' || rule === 'least-time') continue;
+					const name = system.components.find((c) => c.id === balancerId)?.name;
+					fixes.push({
+						label: `Switch ${name ?? balancerId} to least connections`,
+						change: { kind: 'balancing', balancerId, rule: 'least-connections' },
+					});
+				}
 				const needed = Math.min(
 					MAX_INSTANCES,
 					Math.ceil((state.instances * state.utilization) / COMFORTABLE),

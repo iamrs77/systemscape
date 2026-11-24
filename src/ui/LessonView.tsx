@@ -96,7 +96,7 @@ export function LessonView({ lessonId, step: asked }: { lessonId: string; step: 
 					Lesson {index + 1} of {lessons.length}: {lesson.title}
 				</h1>
 
-				<DiagramFrame over={<Facts facts={current.facts} />}>
+				<DiagramFrame over={<Facts facts={current.facts} />} legend="lesson">
 					<Diagram
 						system={drawn?.system ?? system}
 						result={drawn?.result ?? result}
@@ -173,13 +173,16 @@ function StepCard({
 	const about = system.components.find((c) => c.id === step.about);
 	const action = step.action;
 	const setUp = useApp((s) => s.setUp);
-	// the step's words that need explaining, underlined the first time each appears
+	// the step's words that need explaining, underlined the first time each
+	// appears, in the order they're read
+	const compareTexts = step.compare?.rows.map(([, text]) => text) ?? [];
 	const annotated = annotate(
-		[...step.body, step.goodToKnow?.text ?? '', step.whenItFails ?? ''],
+		[...step.body, ...compareTexts, step.goodToKnow?.text ?? '', step.whenItFails ?? ''],
 		namesOf(system),
 	);
 	const body = annotated.slice(0, step.body.length);
-	const [goodToKnow, whenItFails] = annotated.slice(step.body.length);
+	const compared = annotated.slice(step.body.length, step.body.length + compareTexts.length);
+	const [goodToKnow, whenItFails] = annotated.slice(step.body.length + compareTexts.length);
 
 	return (
 		<section
@@ -233,6 +236,23 @@ function StepCard({
 				{step.example && <Sent example={step.example} />}
 				{step.timeline && step.journeyId && (
 					<Timeline journeyId={step.journeyId} result={result} />
+				)}
+				{step.compare && (
+					<figure className="mt-4 shrink-0 overflow-hidden rounded-xl border border-slate-200">
+						<figcaption className="bg-slate-50 px-3.5 py-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+							{step.compare.title}
+						</figcaption>
+						<dl className="divide-y divide-slate-100 text-[13px]">
+							{step.compare.rows.map(([choice], i) => (
+								<div key={choice} className="px-3.5 py-2">
+									<dt className="font-semibold text-ink">{choice}</dt>
+									<dd className="mt-0.5 leading-snug text-slate-600">
+										<Explained pieces={compared[i]!} />
+									</dd>
+								</div>
+							))}
+						</dl>
+					</figure>
 				)}
 				<div className="mt-4 space-y-2.5">
 					{step.goodToKnow && (
@@ -333,7 +353,13 @@ function Timeline({ journeyId, result }: { journeyId: string; result: SimResult 
 							<span className="w-4 shrink-0 text-slate-400 tabular-nums">
 								{i + 1}
 							</span>
-							<span className="min-w-0 flex-1 truncate">{hop.label}</span>
+							<span className="min-w-0 flex-1 truncate">
+								{hop.label}
+								{/* calls made together overlap: their waits don't add up */}
+								{hop.together && (
+									<span className="text-slate-400"> · at the same time</span>
+								)}
+							</span>
 							<span className="shrink-0 text-slate-500 tabular-nums">
 								{hop.mode === 'async' ? 'later' : formatMs(wait)}
 							</span>
@@ -410,7 +436,7 @@ function Sent({ example }: { example: NonNullable<LessonStep['example']> }) {
 	const sent = example.data.filter(([key]) => key !== 'answer');
 	const answer = example.data.find(([key]) => key === 'answer')?.[1];
 	return (
-		<figure className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+		<figure className="mt-4 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
 			<figcaption className="px-3.5 pt-3 text-sm text-slate-700">
 				<span className="block text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
 					What’s sent

@@ -1,33 +1,17 @@
 import { useEffect, useMemo } from 'react';
 import { Diagram, type EdgeLook } from '@/diagram/Diagram';
-import { project, toPoints } from '@/diagram/geometry';
 import { edgeKey, journeyComponents } from '@/diagram/layout';
 import { lessonsOf, stepInput } from '@/learn/lessons';
 import type { System } from '@/model/schema';
 import { simulate } from '@/sim/engine';
 import { lessonHref, systemHref } from '@/route';
 import { startingJourney, useApp } from '@/store';
-import { basics, comingSoon, systems } from '@/systems';
+import { basics, systems } from '@/systems';
 import { SectionTitle } from './controls';
 import { ArrowIcon, GitHubIcon } from './icons';
 import { Logo, REPO_URL } from './TopBar';
 
 const TITLE = 'Systemscape: how big apps are built';
-
-const how = [
-	{
-		title: 'Learn',
-		text: 'First, see what each part does, one row at a time. Then follow what people do in the app, step by step, and see where the time goes.',
-	},
-	{
-		title: 'See it break',
-		text: 'Each lesson ends with something going wrong: a rush, or a part breaking. See what slows down, what fails, and how one failure spreads to other parts.',
-	},
-	{
-		title: 'Fix it yourself',
-		text: 'In Explore freely, turn the traffic up and switch safety features on and off. When something breaks, the app tells you why and offers a fix to try.',
-	},
-];
 
 /** The front page: what Systemscape is, and the systems you can learn. */
 export function Home() {
@@ -97,42 +81,6 @@ export function Home() {
 						))}
 					</ul>
 				</section>
-
-				<section aria-labelledby="coming-title" className="mt-12">
-					<SectionTitle id="coming-title">Coming soon</SectionTitle>
-					<ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-						{comingSoon.map((s) => (
-							<li
-								key={s.name}
-								className="flex items-center gap-4 rounded-2xl border border-dashed border-slate-400 p-4 sm:block"
-							>
-								<EmptyPlot />
-								<div>
-									<p className="text-sm font-semibold sm:mt-3">{s.name}</p>
-									<p className="mt-0.5 text-sm text-slate-600">{s.tagline}</p>
-								</div>
-							</li>
-						))}
-					</ul>
-				</section>
-
-				<section aria-labelledby="how-title" className="mt-14">
-					<SectionTitle id="how-title">How it works</SectionTitle>
-					<ol className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-						{how.map((step, i) => (
-							<li key={step.title} className="surface p-4">
-								<span
-									className="grid size-7 place-items-center rounded-full border border-slate-200 bg-cyan-200 text-xs font-semibold"
-									aria-hidden="true"
-								>
-									{i + 1}
-								</span>
-								<h3 className="mt-3 text-sm font-semibold">{step.title}</h3>
-								<p className="mt-1 text-sm text-slate-600">{step.text}</p>
-							</li>
-						))}
-					</ol>
-				</section>
 			</main>
 
 			<footer className="border-t border-slate-200">
@@ -157,7 +105,7 @@ export function Home() {
 }
 
 /**
- * A system you can learn, the same size as one still to come: a small
+ * A track of the basics: a small
  * drawing of it, what it is, what's in the course, and how far you've got.
  */
 function TrackCard({
@@ -279,42 +227,5 @@ function SystemCard({ system }: { system: System }) {
 				</p>
 			</div>
 		</article>
-	);
-}
-
-/** For a system still being built: an empty plot, its lots marked out. */
-function EmptyPlot() {
-	const corner = (x: number, z: number) => project(x, z);
-	const plot = [corner(-6, -4), corner(6, -4), corner(6, 4), corner(-6, 4)];
-	const lots = [-3.5, 0, 3.5].flatMap((x) => [-1.7, 1.7].map((z) => [x, z] as const));
-	return (
-		<svg
-			viewBox="-7.6 -4.6 15.2 8.2"
-			className="h-14 w-24 shrink-0 sm:h-20 sm:w-full"
-			aria-hidden="true"
-		>
-			<polygon
-				points={toPoints(plot)}
-				fill="#eef1f7"
-				stroke="#a3acbf"
-				strokeWidth="0.1"
-				strokeDasharray="0.4 0.3"
-			/>
-			{lots.map(([x, z]) => (
-				<polygon
-					key={`${x},${z}`}
-					points={toPoints([
-						corner(x - 1.2, z - 1.1),
-						corner(x + 1.2, z - 1.1),
-						corner(x + 1.2, z + 1.1),
-						corner(x - 1.2, z + 1.1),
-					])}
-					fill="#f8fafc"
-					stroke="#b8c0d0"
-					strokeWidth="0.08"
-					strokeDasharray="0.3 0.25"
-				/>
-			))}
-		</svg>
 	);
 }

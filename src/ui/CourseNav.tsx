@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { lessonsOf } from '@/learn/lessons';
 import { exploreHref, lessonHref, type Mode } from '@/route';
-import { useApp, useSystem } from '@/store';
+import { startingJourney, useApp, useSystem } from '@/store';
 import { cx } from './cx';
 import { CheckIcon, ChevronIcon, CompassIcon } from './icons';
 
@@ -10,6 +10,7 @@ export function CourseNav({ mode }: { mode: Mode }) {
 	const system = useSystem();
 	const lessons = lessonsOf(system);
 	const learned = useApp((s) => s.learned);
+	const setUp = useApp((s) => s.setUp);
 	const [open, setOpen] = useState(false);
 
 	const isLearned = (id: string) => learned.includes(`${system.id}/${id}`);
@@ -84,7 +85,12 @@ export function CourseNav({ mode }: { mode: Mode }) {
 						current={mode.kind === 'explore'}
 						done={false}
 						mark={<CompassIcon width={12} height={12} />}
-						onPick={() => setOpen(false)}
+						onPick={() => {
+							setOpen(false);
+							// from a lesson, it starts on an ordinary day, not on whatever a
+							// lesson's “try it” last set up; already in it, nothing changes
+							if (mode.kind !== 'explore') setUp(null, startingJourney(system).id);
+						}}
 					>
 						Explore freely
 					</Item>

@@ -77,16 +77,20 @@ A journey is something people do, with its requests per second at normal traffic
 }
 ```
 
-| Hop field  | Meaning                                                                                                                                |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `label`    | What's sent, shown in the journey's steps.                                                                                             |
-| `mode`     | `'async'`: handed off; the user doesn't wait, and failures count as background work failing.                                           |
-| `optional` | The request still succeeds without it (graceful degradation).                                                                          |
-| `onMiss`   | Only happens when `from`, a cache, can't answer.                                                                                       |
-| `share`    | The share of requests that make this call (default 1).                                                                                 |
-| `calls`    | Calls per request, e.g. 5 when asking about five drivers (default 1).                                                                  |
-| `retries`  | How many times a failed call is tried again (0 to 5).                                                                                  |
-| `example`  | What one real request sends here, for the lessons: `says` (a sentence) and `data` (the details, with an `answer` for what comes back). |
+| Hop field   | Meaning                                                                                                                                 |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `label`     | What's sent, shown in the journey's steps.                                                                                              |
+| `mode`      | `'async'`: handed off; the user doesn't wait, and failures count as background work failing.                                            |
+| `optional`  | The request still succeeds without it (graceful degradation).                                                                           |
+| `onMiss`    | Only happens when `from`, a cache, can't answer.                                                                                        |
+| `share`     | The share of requests that make this call (default 1).                                                                                  |
+| `pick`      | One of the copies a load balancer chooses between: the hops marked `pick` from one part share its requests by its rule, not by `share`. |
+| `together`  | Calls made at the same time from one part share a name; the caller waits for the slowest, or for `need` of them.                        |
+| `need`      | With `together`: how many must answer, like 2 of 3 for a quorum. All of them when not set.                                              |
+| `everyCopy` | Every copy of the part applies it, like a change copied to each read copy.                                                              |
+| `calls`     | Calls per request, e.g. 5 when asking about five drivers (default 1).                                                                   |
+| `retries`   | How many times a failed call is tried again (0 to 5).                                                                                   |
+| `example`   | What one real request sends here, for the lessons: `says` (a sentence) and `data` (the details, with an `answer` for what comes back).  |
 
 A journey's `person` and `story` are optional too: with them, its lesson follows that person (“Meera waits for this”) and opens with the scene.
 
@@ -108,6 +112,6 @@ Each journey's lesson ends on a scenario: the one named by the journey's `scenar
 
 ## 5. Register it and check it
 
-Add it to `systems` in `src/systems/index.ts` (and take it off `comingSoon`).
+Add it to `systems` in `src/systems/index.ts`.
 
 `parseSystem` runs when the app loads, and lists every problem at once: a hop to a component that doesn't exist, a hop from somewhere the journey hasn't reached, a cache without a hit rate. Then tune capacities until the scenarios tell the story you want: open Explore freely on each one, and the panel beside the diagram says what's failing and why. The normal scenario should run without failures.

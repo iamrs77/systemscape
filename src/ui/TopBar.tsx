@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { homeHref, systemHref } from '@/route';
-import { allSystems, comingSoon } from '@/systems';
+import { allSystems } from '@/systems';
 import { useApp, useSystem } from '@/store';
 import { Button } from './controls';
 import { ArrowIcon, BookIcon, ChevronIcon, GitHubIcon, InfoIcon } from './icons';
@@ -48,7 +48,7 @@ export function TopBar() {
 	);
 }
 
-/** Choose a system; the ones still being built are listed as coming soon. */
+/** Choose a system. */
 function SystemPicker() {
 	const system = useSystem();
 	const [open, setOpen] = useState(false);
@@ -100,17 +100,6 @@ function SystemPicker() {
 										{s.tagline}
 									</span>
 								</a>
-							</li>
-						))}
-					</ul>
-					<p className="mt-1 border-t border-slate-200 px-3 pt-2 pb-1 text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">
-						Coming soon
-					</p>
-					<ul>
-						{comingSoon.map((s) => (
-							<li key={s.name} className="px-3 py-1.5 opacity-60">
-								<span className="block text-sm text-slate-600">{s.name}</span>
-								<span className="block text-xs text-slate-500">{s.tagline}</span>
 							</li>
 						))}
 					</ul>

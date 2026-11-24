@@ -14,14 +14,6 @@ export const systems: readonly System[] = [
 	parseSystem(stockroom),
 ];
 
-/** Systems still being built: listed so visitors know what's coming. */
-export const comingSoon = [
-	{
-		name: 'Stock trading app',
-		tagline: 'Live prices and order matching for millions of traders.',
-	},
-] as const;
-
 /** The basics: a made-up shop app with a hand-written course on the ideas behind every system. */
 export const basics: System = parseSystem(basicsInput);
 

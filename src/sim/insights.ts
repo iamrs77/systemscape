@@ -27,6 +27,18 @@ export const SLOW_MS = 1000;
  * Explains a simulation result in plain words: what's failing, why, and what
  * the system is doing about it. The most serious come first.
  */
+/** Where a part's waiting work waits: in a queue, or unread in an event stream. */
+export function waitsIn(system: System, id: string): 'queue' | 'stream' {
+	const kinds = new Set(
+		system.journeys.flatMap((j) =>
+			j.hops
+				.filter((h) => h.to === id)
+				.map((h) => system.components.find((c) => c.id === h.from)?.kind),
+		),
+	);
+	return kinds.has('stream') && !kinds.has('queue') ? 'stream' : 'queue';
+}
+
 export function explain(system: System, input: SimInput, result: SimResult): Insight[] {
 	const insights: Insight[] = [];
 	const name = (id: string) => system.components.find((c) => c.id === id)?.name ?? id;
@@ -106,7 +118,7 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 				text: `${component.name} is down. ${component.onFailure}`,
 				componentId: id,
 			});
-		} else if (state.status === 'overloaded') {
+		} else if (state.status === 'overloaded' || state.status === 'behind') {
 			let why = '';
 			if (component.kind === 'external') {
 				why = ' Another company runs it, so we can’t add copies.';
@@ -124,12 +136,18 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 					? {
 							// a queue in front keeps the work: it's late, not lost, while the queue lasts
 							level: 'warn',
-							text: `${component.name} can’t keep up. It gets ${formatUtilization(state.utilization)} of the work it can do, so jobs pile up in the queue, ${perMinute(state.backlog).replace(' every', ' more every')}, and wait their turn.${why}`,
+							text:
+								waitsIn(system, id) === 'stream'
+									? `${component.name} can’t keep up. It gets ${formatUtilization(state.utilization)} of the work it can do, so it falls behind in the event stream: ${perMinute(state.backlog).replace(' every', ' more events every')} wait to be read.${why}`
+									: `${component.name} can’t keep up. It gets ${formatUtilization(state.utilization)} of the work it can do, so jobs pile up in the queue, ${perMinute(state.backlog).replace(' every', ' more every')}, and wait their turn.${why}`,
 							componentId: id,
 						}
 					: {
 							level: 'bad',
-							text: `${component.name} is overloaded. It gets ${formatUtilization(state.utilization)} of the requests it can handle, so ${formatShare(state.failRate)} of them fail.${why}`,
+							text:
+								state.threads !== undefined && state.inFlight > state.threads
+									? `${component.name} has run out of threads. It would have ${Math.round(state.inFlight)} requests in progress at once, counting those waiting on the parts it calls, but has room for ${state.threads}, so ${formatShare(state.failRate)} of requests are turned away.`
+									: `${component.name} is overloaded. It gets ${formatUtilization(state.utilization)} of the requests it can handle, so ${formatShare(state.failRate)} of them fail.${why}`,
 							componentId: id,
 						},
 			);
@@ -141,12 +159,22 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 			state.load > state.demand * 1.15 &&
 			state.status !== 'down'
 		) {
-			insights.push({
-				level: 'warn',
-				text: `Retries add ${formatShare(state.load / state.demand - 1)} more calls to ${component.name}, which already can’t keep up. This is called a retry storm.`,
-				componentId: id,
-				retryStorm: true,
-			});
+			const extra = formatShare(state.load / state.demand - 1);
+			insights.push(
+				// trying again only makes a storm when the part is already past full
+				state.utilization >= 1
+					? {
+							level: 'warn',
+							text: `Retries add ${extra} more calls to ${component.name}, which already can’t keep up. This is called a retry storm.`,
+							componentId: id,
+							retryStorm: true,
+						}
+					: {
+							level: 'info',
+							text: `Retries add ${extra} more calls to ${component.name}, trying again after calls that failed. It has room for them, for now.`,
+							componentId: id,
+						},
+			);
 		}
 
 		if (state.breakerOpen) {

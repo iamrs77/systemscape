@@ -3,6 +3,7 @@ import { edgeKey, runningJourneys, runningParts } from '@/diagram/layout';
 import type { System } from '@/model/schema';
 import { simulate, type SimResult } from '@/sim/engine';
 import { feelOfMs, feelOfShare, formatMs, formatRps, formatShare, perMinute } from '@/sim/format';
+import { waitsIn } from '@/sim/insights';
 import { conditionsInput, type Conditions } from '@/sim/scenario';
 import type { Lesson, LessonStep, Tone } from './lessons';
 
@@ -20,11 +21,17 @@ export type FactSpec =
 	| 'rate'
 	/** Requests that worked without an optional part (graceful degradation). */
 	| 'degraded'
+	/** The share of the journey's background work that fails. */
+	| 'background'
+	/** Requests one part has in progress at once, against the threads it has. */
+	| { threads: string }
 	| { busy: string }
 	| { copies: string }
 	| { load: string }
 	/** The requests each copy of a part gets: its load shared out. */
 	| { each: string }
+	/** How busy each of several copies is, side by side: the parts a load balancer picks between. */
+	| { busyEach: string[]; label?: string }
 	/** Work arriving faster than a part can do it, waiting in its queue. */
 	| { backlog: string }
 	/** The extra calls a part gets because callers try again. */
@@ -32,6 +39,8 @@ export type FactSpec =
 	/** Another journey's wait or success, beside this one's. */
 	| { wait: string; label: string }
 	| { succeed: string; label: string }
+	/** Another journey's requests a second. */
+	| { rate: string; label: string }
 	| { label: string; value: string; hint?: string };
 
 export type StepSpec = {
@@ -58,6 +67,8 @@ export type StepSpec = {
 	/** The part this step is about, to read more on. */
 	about?: string;
 	example?: { says: string; data: Record<string, string> };
+	/** The choices side by side, and when each one fits: “which one when”. */
+	compare?: { title: string; rows: [string, string][] };
 };
 
 export type LessonSpec = {
@@ -114,6 +125,20 @@ function factsFor(
 					]
 				: [];
 		}
+		if (spec === 'background') {
+			return journey
+				? [
+						{
+							label: 'Background work that fails',
+							value: formatShare(journey.backgroundFailure),
+							hint:
+								journey.backgroundFailure < 0.001
+									? 'none'
+									: feelOfShare(1 - journey.backgroundFailure),
+						},
+					]
+				: [];
+		}
 		if (spec === 'degraded') {
 			return journey
 				? [
@@ -124,6 +149,26 @@ function factsFor(
 						},
 					]
 				: [];
+		}
+		if ('threads' in spec) {
+			const state = result.components[spec.threads];
+			if (!state?.threads) return [];
+			const inUse = Math.round(state.inFlight);
+			return [
+				{
+					label: `Threads: ${name(spec.threads)}`,
+					value: `${Math.min(inUse, state.threads)} of ${state.threads}`,
+					hint:
+						state.inFlight > state.threads
+							? `${inUse} wanted: the rest turned away`
+							: 'room to spare',
+				},
+			];
+		}
+		if ('rate' in spec) {
+			const state = result.journeys[spec.rate];
+			if (!state) return [];
+			return [{ label: spec.label, value: formatRps(state.rps), hint: perMinute(state.rps) }];
 		}
 		if ('busy' in spec) {
 			const state = result.components[spec.busy];
@@ -188,14 +233,50 @@ function factsFor(
 		if ('backlog' in spec) {
 			const state = result.components[spec.backlog];
 			const extra = state?.backlog ?? 0;
+			// a queue's jobs pile up; a stream's events wait, unread
+			const label =
+				waitsIn(system, spec.backlog) === 'stream'
+					? 'Behind in the stream'
+					: 'Piling up in the queue';
 			return [
 				extra > 0
 					? {
-							label: 'Piling up in the queue',
+							label,
 							value: `+${formatRps(extra)}`,
 							hint: perMinute(extra).replace(' every', ' more every'),
 						}
-					: { label: 'Piling up in the queue', value: '0', hint: 'keeping up' },
+					: { label, value: '0', hint: 'keeping up' },
+			];
+		}
+		if ('busyEach' in spec) {
+			const states = spec.busyEach.map((id) => result.components[id]);
+			const worst = spec.busyEach.reduce<string | null>(
+				(most, id) =>
+					most === null ||
+					(result.components[id]?.utilization ?? 0) >
+						(result.components[most]?.utilization ?? 0)
+						? id
+						: most,
+				null,
+			);
+			const top = worst ? result.components[worst] : undefined;
+			return [
+				{
+					label: spec.label ?? 'How busy, each copy',
+					value: states
+						.map((s) =>
+							s?.status === 'down'
+								? 'down'
+								: `${Math.round((s?.utilization ?? 0) * 100)}%`,
+						)
+						.join(' · '),
+					hint:
+						top && worst && top.status !== 'down' && top.utilization >= 1
+							? `${name(worst)} can’t keep up`
+							: states.some((s) => s?.status === 'down')
+								? 'one is down'
+								: 'all keeping up',
+				},
 			];
 		}
 		if ('each' in spec) {
@@ -256,58 +337,74 @@ function stepFrom(system: System, spec: StepSpec): LessonStep {
 			says: spec.example.says,
 			data: Object.entries(spec.example.data),
 		},
+		compare: spec.compare,
 		result,
 		conditions,
 	};
 }
 
-/** A system's hand-written course, as lessons, in order, each knowing its track. */
+/** A lesson's steps, each worked out by running the simulation, ending with a chance to try it. */
+function stepsOf(system: System, lesson: LessonSpec): LessonStep[] {
+	const steps = lesson.steps.map((spec) => stepFrom(system, spec));
+	const last = lesson.steps.at(-1)!;
+	const tryConditions = lesson.tryIt.set ?? last.set ?? {};
+	const journeyId = lesson.tryIt.journey ?? last.journey ?? null;
+	// what Explore freely will show: the journeys running, and the parts they use
+	const tried = simulate(system, conditionsInput(system, tryConditions));
+	const running = runningParts(system, tried);
+	const others = runningJourneys(system, tried).filter((id) => id !== journeyId);
+	return [
+		...steps,
+		{
+			...stepFrom(system, {
+				...last,
+				show: [...running],
+				draw: others.length > 0 ? others : undefined,
+				current: [],
+				set: tryConditions,
+				journey: journeyId ?? undefined,
+			}),
+			title: 'Try it yourself',
+			body: [
+				lesson.tryIt.text,
+				'Change anything there: the traffic, the copies, what’s down. The panel beside the diagram says what happens, and why.',
+			],
+			facts: [],
+			tags: [],
+			goodToKnow: undefined,
+			whenItFails: undefined,
+			timeline: false,
+			example: undefined,
+			compare: undefined,
+			action: {
+				kind: 'explore',
+				label: 'Try it in Explore freely',
+				journeyId: journeyId ?? undefined,
+				conditions: tryConditions,
+			},
+		},
+	];
+}
+
+/**
+ * A system's hand-written course, as lessons, in order, each knowing its
+ * track. A lesson's steps are worked out the first time they're read, when
+ * it's opened: the whole course runs hundreds of simulations, too many to
+ * run before the first page shows.
+ */
 export function courseLessons(system: System, tracks: Track[]): Lesson[] {
 	return tracks.flatMap((track) =>
 		track.lessons.map((lesson): Lesson => {
-			const steps = lesson.steps.map((spec) => stepFrom(system, spec));
-			const last = lesson.steps.at(-1)!;
-			const tryConditions = lesson.tryIt.set ?? last.set ?? {};
-			const journeyId = lesson.tryIt.journey ?? last.journey ?? null;
-			// what Explore freely will show: the journeys running, and the parts they use
-			const tried = simulate(system, conditionsInput(system, tryConditions));
-			const running = runningParts(system, tried);
-			const others = runningJourneys(system, tried).filter((id) => id !== journeyId);
+			let steps: LessonStep[] | undefined;
 			return {
 				id: lesson.id,
 				title: lesson.title,
 				summary: lesson.summary,
 				track: { id: track.id, name: track.name },
-				steps: [
-					...steps,
-					{
-						...stepFrom(system, {
-							...last,
-							show: [...running],
-							draw: others.length > 0 ? others : undefined,
-							current: [],
-							set: tryConditions,
-							journey: journeyId ?? undefined,
-						}),
-						title: 'Try it yourself',
-						body: [
-							lesson.tryIt.text,
-							'Change anything there: the traffic, the copies, what’s down. The panel beside the diagram says what happens, and why.',
-						],
-						facts: [],
-						tags: [],
-						goodToKnow: undefined,
-						whenItFails: undefined,
-						timeline: false,
-						example: undefined,
-						action: {
-							kind: 'explore',
-							label: 'Try it in Explore freely',
-							journeyId: journeyId ?? undefined,
-							conditions: tryConditions,
-						},
-					},
-				],
+				get steps() {
+					steps ??= stepsOf(system, lesson);
+					return steps;
+				},
 			};
 		}),
 	);

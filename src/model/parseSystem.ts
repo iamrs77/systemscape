@@ -46,11 +46,49 @@ export function parseSystem(input: SystemInput): System {
 			if (!reached.has(hop.from)) {
 				problems.push(`${where}: "${hop.from}" isn't reached by an earlier hop`);
 			}
-			if (hop.onMiss && !byId.get(hop.from)?.hitRate) {
+			if (hop.onMiss && byId.get(hop.from)?.hitRate === undefined) {
 				problems.push(`${where}: onMiss hops must start from a cache or CDN`);
 			}
 			reached.add(hop.to);
 		});
+		// a load balancer's copies: at least two, each once, their shares adding up to 1
+		const picks = new Map<string, typeof journey.hops>();
+		for (const hop of journey.hops.filter((h) => h.pick)) {
+			picks.set(hop.from, [...(picks.get(hop.from) ?? []), hop]);
+		}
+		// calls made together: from one part, waited on, and asking no more answers than there are calls
+		const groups = new Map<string, typeof journey.hops>();
+		for (const hop of journey.hops.filter((h) => h.together !== undefined)) {
+			groups.set(hop.together!, [...(groups.get(hop.together!) ?? []), hop]);
+		}
+		for (const [name, group] of groups) {
+			const where = `journey ${journey.id}, the calls made together as "${name}"`;
+			if (new Set(group.map((h) => h.from)).size > 1)
+				problems.push(`${where}: they must all come from one part`);
+			if (group.some((h) => h.mode === 'async'))
+				problems.push(`${where}: nobody waits for background calls`);
+			if (group.length > 12) problems.push(`${where}: at most 12`);
+			const needs = new Set(group.map((h) => h.need));
+			const need = group[0]!.need;
+			if (needs.size > 1) problems.push(`${where}: give them all the same need`);
+			if (need !== undefined && need > group.length)
+				problems.push(`${where}: need is more than the calls`);
+		}
+		for (const hop of journey.hops) {
+			if (hop.need !== undefined && hop.together === undefined)
+				problems.push(`journey ${journey.id}: need only goes with together`);
+		}
+		for (const [from, group] of picks) {
+			const where = `journey ${journey.id}, the copies ${from} picks between`;
+			if (group.length < 2) problems.push(`${where}: there must be at least two`);
+			if (new Set(group.map((hop) => hop.to)).size < group.length) {
+				problems.push(`${where}: each copy can only be named once`);
+			}
+			const total = group.reduce((sum, hop) => sum + hop.share, 0);
+			if (Math.abs(total - 1) > 0.01) {
+				problems.push(`${where}: their shares add up to ${total}, not 1`);
+			}
+		}
 	}
 
 	const journeyIds = new Set(system.journeys.map((j) => j.id));

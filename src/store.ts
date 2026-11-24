@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { System } from '@/model/schema';
-import { simulate, type SimInput, type SimResult } from '@/sim/engine';
+import { simulate, type Balancing, type SimInput, type SimResult } from '@/sim/engine';
 import type { Change } from '@/sim/fixes';
 import { mainJourney } from '@/learn/lessons';
 import {
@@ -34,6 +34,8 @@ type State = {
 	learned: string[];
 	paused: boolean;
 	dialog: Dialog;
+	/** The side panels, widened from how they start. */
+	wide: Wide;
 };
 
 type Actions = {
@@ -43,6 +45,17 @@ type Actions = {
 	setOption(option: Option, on: boolean): void;
 	setDown(componentId: string, down: boolean): void;
 	setInstances(componentId: string, instances: number): void;
+	/** How a load balancer picks between its copies. */
+	setBalancing(balancerId: string, rule: Balancing): void;
+	setHealthChecks(on: boolean): void;
+	/** Every request to a part takes ten times as long, like a copy with a failing disk. */
+	setSlow(componentId: string, on: boolean): void;
+	/** A part turns away what it can't take at once, instead of letting it time out. */
+	setShed(componentId: string, on: boolean): void;
+	/** Breaks the network link between two parts, or mends it. */
+	setCut(a: string, b: string, cut: boolean): void;
+	/** A cache's share of answers from memory. */
+	setHitRate(componentId: string, rate: number): void;
 	select(componentId: string | null): void;
 	hover(componentId: string | null): void;
 	selectJourney(journeyId: string | null): void;
@@ -58,11 +71,27 @@ type Actions = {
 	resetProgress(): void;
 	setPaused(paused: boolean): void;
 	openDialog(dialog: Dialog): void;
+	/** Widens a side panel, or puts it back. */
+	toggleWide(side: keyof Wide): void;
 };
 
 export type AppState = State & Actions;
 
 const LEARNED_KEY = 'systemscape:learned';
+const WIDE_KEY = 'systemscape:wide';
+
+export type Wide = { left: boolean; right: boolean };
+
+/** The panels as this viewer left them: as they start, unless widened. */
+function loadWide(): Wide {
+	try {
+		const saved: unknown = JSON.parse(localStorage.getItem(WIDE_KEY) ?? '{}');
+		const wide = (saved ?? {}) as Partial<Wide>;
+		return { left: wide.left === true, right: wide.right === true };
+	} catch {
+		return { left: false, right: false };
+	}
+}
 
 /** Saved progress: a list of "system/thing" keys. */
 function load(key: string): string[] {
@@ -115,6 +144,7 @@ export function initialState(): State {
 		hovered: null,
 		learned: load(LEARNED_KEY),
 		paused: prefersReducedMotion(),
+		wide: loadWide(),
 		dialog: null,
 	};
 }
@@ -123,7 +153,14 @@ export const useApp = create<AppState>()((set, get) => {
 	const system = () => getSystem(get().systemId);
 
 	/** Runs the simulation with new conditions. */
-	const run = (input: SimInput) => set({ input, result: simulate(system(), input) });
+	const run = (input: SimInput) => {
+		const result = simulate(system(), input);
+		// a journey that isn't running any more, like a lesson's design after a scenario
+		// switches it off, has nothing to show: follow them all instead
+		const followed = get().journeyId;
+		const stopped = followed !== null && (result.journeys[followed]?.rps ?? 0) === 0;
+		set({ input, result, ...(stopped ? { journeyId: null } : {}) });
+	};
 
 	return {
 		...initialState(),
@@ -170,6 +207,39 @@ export const useApp = create<AppState>()((set, get) => {
 			});
 		},
 
+		setBalancing(balancerId, rule) {
+			run({ ...get().input, balancing: { ...get().input.balancing, [balancerId]: rule } });
+		},
+
+		setHealthChecks(on) {
+			run({ ...get().input, healthChecks: on });
+		},
+
+		setSlow(componentId, on) {
+			const { [componentId]: _removed, ...others } = get().input.slow ?? {};
+			run({ ...get().input, slow: on ? { ...others, [componentId]: 10 } : others });
+		},
+
+		setShed(componentId, on) {
+			const others = (get().input.shed ?? []).filter((id) => id !== componentId);
+			run({ ...get().input, shed: on ? [...others, componentId] : others });
+		},
+
+		setCut(a, b, cut) {
+			const others = (get().input.cut ?? []).filter(
+				([x, y]) => !((x === a && y === b) || (x === b && y === a)),
+			);
+			run({ ...get().input, cut: cut ? [...others, [a, b] as const] : others });
+		},
+
+		setHitRate(componentId, rate) {
+			const hitRate = {
+				...get().input.hitRate,
+				[componentId]: Math.min(1, Math.max(0, rate)),
+			};
+			run({ ...get().input, hitRate });
+		},
+
 		select(componentId) {
 			set({ selected: componentId });
 		},
@@ -197,6 +267,8 @@ export const useApp = create<AppState>()((set, get) => {
 		applyChange(change) {
 			if (change.kind === 'copies') get().setInstances(change.componentId, change.instances);
 			else if (change.kind === 'bring-back') get().setDown(change.componentId, false);
+			else if (change.kind === 'balancing')
+				get().setBalancing(change.balancerId, change.rule);
 			else get().setOption(change.option, change.on);
 		},
 
@@ -217,6 +289,16 @@ export const useApp = create<AppState>()((set, get) => {
 
 		setPaused(paused) {
 			set({ paused });
+		},
+
+		toggleWide(side) {
+			const wide = { ...get().wide, [side]: !get().wide[side] };
+			try {
+				localStorage.setItem(WIDE_KEY, JSON.stringify(wide));
+			} catch {
+				// the panels just start as they are next time
+			}
+			set({ wide });
 		},
 
 		openDialog(dialog) {
