@@ -34,8 +34,8 @@ export function parseSystem(input: SystemInput): System {
 	for (const journey of system.journeys) {
 		const first = journey.hops[0];
 		const start = first && byId.get(first.from);
-		if (start?.kind !== 'client') {
-			problems.push(`journey ${journey.id} must start from a client`);
+		if (start?.kind !== 'client' && start?.kind !== 'external') {
+			problems.push(`journey ${journey.id} must start from a client or an outside provider`);
 		}
 		const reached = new Set(first ? [first.from] : []);
 		journey.hops.forEach((hop, i) => {

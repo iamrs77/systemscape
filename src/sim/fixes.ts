@@ -30,6 +30,19 @@ export function fixesFor(
 		const fixes: Fix[] = [];
 		const component = system.components.find((c) => c.id === insight.componentId);
 		const state = component && result.components[component.id];
+		// breakers only help when someone waits on the part, and the simulation
+		// never trips them on a cache
+		const breakersHelp =
+			!input.circuitBreakers &&
+			component !== undefined &&
+			component.kind !== 'cache' &&
+			component.kind !== 'cdn' &&
+			// a person using an app waits on it: not just another company's system
+			system.journeys.some(
+				(j) =>
+					system.components.find((c) => c.id === j.hops[0]!.from)?.kind === 'client' &&
+					j.hops.some((h) => h.to === component.id && h.mode === 'sync'),
+			);
 		const breakers: Fix = {
 			label: 'Turn on circuit breakers',
 			change: { kind: 'switch', option: 'circuitBreakers', on: true },
@@ -49,10 +62,10 @@ export function fixesFor(
 						: `Bring back ${component.name}`,
 				change: { kind: 'bring-back', componentId: component.id },
 			});
-			if (!input.circuitBreakers) fixes.push(breakers);
+			if (breakersHelp) fixes.push(breakers);
 		} else if (component && state?.status === 'overloaded') {
 			if (component.kind === 'external') {
-				if (!input.circuitBreakers) fixes.push(breakers);
+				if (breakersHelp) fixes.push(breakers);
 			} else {
 				const needed = Math.min(
 					MAX_INSTANCES,

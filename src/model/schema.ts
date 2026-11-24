@@ -71,7 +71,10 @@ export const hopSchema = z.object({
 	mode: z.enum(['sync', 'async']).default('sync'),
 	/** Only happens when `from` (a cache) can't answer by itself. */
 	onMiss: z.boolean().default(false),
-	/** The share of requests that make this call, e.g. 0.3. */
+	/**
+	 * The share of the requests reaching `from` that make this call, e.g. 0.3.
+	 * The calls after it, from where it leads, are a share of that share.
+	 */
 	share: z.number().min(0).max(1).default(1),
 	/** Calls per request, e.g. 3 when a request asks three drivers. */
 	calls: z.number().positive().default(1),
@@ -99,7 +102,10 @@ export const journeySchema = z.object({
 	person: text.optional(),
 	/** Sets the scene for the lesson: who, where, when. */
 	story: text.optional(),
-	/** In the order they happen. Each hop starts from the client or a component reached earlier. */
+	/**
+	 * In the order they happen. The first starts from an app (or an outside
+	 * company that sends us something); each after it from a part reached earlier.
+	 */
 	hops: z.array(hopSchema).min(1),
 	/**
 	 * The scenario its lesson ends on, to show what can go wrong with it. By

@@ -278,7 +278,14 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 				says: hop.example.says,
 				data: Object.entries(hop.example.data),
 			},
-			facts: hopFacts(hop, to, hopState.sent, hopState.waitMs, result),
+			facts: hopFacts(
+				hop,
+				to,
+				hopState.sent,
+				hopState.waitMs,
+				result,
+				state.rps > 0 ? hopState.sent / (state.rps * hop.calls) : 1,
+			),
 			tags: hopTags(hop, who),
 			goodToKnow: goodToKnow(hop, to, firstMeeting),
 			whenItFails: to.kind === 'client' ? undefined : to.onFailure,
@@ -334,7 +341,7 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 			{
 				title: 'Where the time goes',
 				body: [
-					`On a normal evening, ${who} waits about ${formatMs(state.latencyMs)} from tap to answer. That’s ${feelOfMs(state.latencyMs)}.`,
+					`On a normal evening, ${who} waits about ${formatMs(state.latencyMs)} for an answer. That’s ${feelOfMs(state.latencyMs)}.`,
 					slowest
 						? `The longest step is “${slowest.hop.label}”, at ${formatMs(slowest.wait)}. That’s **${part(slowest.hop.from).name}** waiting for **${part(slowest.hop.to).name}**.`
 						: '',
@@ -468,12 +475,22 @@ function hopFacts(
 	sent: number,
 	waitMs: number,
 	result: SimResult,
+	/** The share of the journey's requests that make this call. */
+	often: number,
 ): LessonStep['facts'] {
+	// a call few requests make: what it adds when it happens, not shared out over everyone
+	const rare = often < 0.5 && often > 0;
 	const facts: LessonStep['facts'] = [
 		{ label: 'Calls a second', value: formatRps(sent), hint: perMinute(sent) },
 		hop.mode === 'async'
 			? { label: 'Adds to the wait', value: 'nothing', hint: 'nobody waits for it' }
-			: { label: 'Adds to the wait', value: formatMs(waitMs), hint: feelOfMs(waitMs) },
+			: rare
+				? {
+						label: 'Adds, when it happens',
+						value: formatMs(waitMs / often),
+						hint: `for ${formatShare(often)} of requests`,
+					}
+				: { label: 'Adds to the wait', value: formatMs(waitMs), hint: feelOfMs(waitMs) },
 	];
 	const copies = result.components[to.id]?.instances ?? to.instances;
 	if (to.kind === 'cache' && to.hitRate !== undefined) {
@@ -613,9 +630,11 @@ function underLoad(system: System, journey: Journey, normal: JourneyState) {
 					: []),
 			]
 		: [
-				worst.state.success < 0.99
-					? `Now only ${formatShare(worst.state.success)} of “${journey.name}” requests succeed. ${capitalise(feelOfShare(worst.state.success))}. ${capitalise(who)} waits about ${formatMs(worst.state.latencyMs)}.`
-					: `“${journey.name}” still works, but ${who} now waits about ${formatMs(worst.state.latencyMs)}. That’s ${feelOfMs(worst.state.latencyMs)}.`,
+				worst.state.success < 0.005
+					? `Now every “${journey.name}” request fails. ${capitalise(who)} waits about ${formatMs(worst.state.latencyMs)} for nothing.`
+					: worst.state.success < 0.99
+						? `Now only ${formatShare(worst.state.success)} of “${journey.name}” requests succeed. ${capitalise(feelOfShare(worst.state.success))}. ${capitalise(who)} waits about ${formatMs(worst.state.latencyMs)}.`
+						: `“${journey.name}” still works, but ${who} now waits about ${formatMs(worst.state.latencyMs)}. That’s ${feelOfMs(worst.state.latencyMs)}.`,
 				...(causes.length ? causes : insights).slice(0, 2).map((i) => i.text),
 			];
 	// what to try in Explore freely: the fixes for this journey's trouble, the culprit's first

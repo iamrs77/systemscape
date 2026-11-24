@@ -16,7 +16,7 @@ A system is a plain object in `src/systems/<name>.ts`. Everything else is generi
 Two layers of checking:
 
 1. **A zod schema** (`src/model/schema.ts`) for the shape and defaults: ids are lower-case words, a hop's `retries` is 0 to 5, a share is between 0 and 1.
-2. **`parseSystem`** for what a schema can't express: every id it mentions exists, each journey starts from a client, each hop starts from somewhere the journey has reached, only caches have hit rates (and every cache has one), only cache hops can be `onMiss`. It collects every problem and throws them together.
+2. **`parseSystem`** for what a schema can't express: every id it mentions exists, each journey starts from a client (or an outside provider that sends something in, like a broadcaster), each hop starts from somewhere the journey has reached, only caches have hit rates (and every cache has one), only cache hops can be `onMiss`. It collects every problem and throws them together.
 
 Both run when the app loads and in the tests. Each system also has a test proving its challenges are fair: each fails its goal at the start and a sensible fix solves it.
 

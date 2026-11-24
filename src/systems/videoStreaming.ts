@@ -12,7 +12,7 @@ export const videoStreaming: SystemInput = {
 		'Getting a film, or a live cricket final, to millions of screens at once without buffering.',
 	basis: 'inspired',
 	description: [
-		'Viewers browse what to watch, press play, and the video starts in a second or two. The video itself doesn’t come from the main servers. It comes from video servers close to the viewer, many inside their internet provider’s building. Behind the scenes, every new film is turned into many versions, one for each kind of screen and internet speed.',
+		'Viewers browse what to watch, press play, and the video starts in a second or two. The video itself doesn’t come from the main servers. It comes from video servers close to the viewer, many inside their internet provider’s building. Behind the scenes, every new film is turned into many versions, one for each kind of screen and internet speed. Live matches are made into pieces as they happen.',
 		'This is a simplified design based on public posts and talks by Netflix and Hotstar, not either company’s actual system. The traffic numbers are illustrative, for one country on an ordinary evening.',
 	],
 	sources: [
@@ -67,8 +67,12 @@ export const videoStreaming: SystemInput = {
 			detail: 'A phone on a slow connection and a big 4K TV need very different files. So each film is encoded into many versions, each cut into pieces a few seconds long. Netflix even tunes the versions for each title: a simple cartoon needs fewer bits than a dark action film.',
 		},
 		{
-			title: 'The app picks the next few seconds as it goes',
-			detail: 'While a film plays, the app fetches the next piece again and again. If the internet slows down, it picks a smaller version for the next piece. The picture gets softer for a moment, instead of stopping to buffer.',
+			title: 'The app keeps the next half minute ready',
+			detail: 'While a film plays, the app fetches the next piece again and again, and keeps a buffer of what’s coming. If the internet slows down, it picks a smaller version for the next piece. The picture gets softer for a moment, instead of stopping.',
+		},
+		{
+			title: 'A live match is made into pieces as it happens',
+			detail: 'A live encoder turns every couple of seconds of the match into pieces in each version, and the CDN fetches them. Everyone watching asks for the same newest piece at the same moment, so the CDN answers almost all of them. Making each piece takes a moment, which is why the stream is a few seconds behind the stadium.',
 		},
 		{
 			title: 'When recommendations fail, show popular titles instead',
@@ -79,12 +83,20 @@ export const videoStreaming: SystemInput = {
 			detail: 'Every viewer’s app saves how far they’ve got every few seconds, but the history is only read when someone starts watching. Netflix found about nine writes for every read. So the history lives in a database built for lots of writes, split into shards by viewer.',
 		},
 		{
+			title: 'Search has its own index',
+			detail: 'Looking for a word in every title’s name and description would be slow. A search index lists every word and the titles it appears in, like the index at the back of a book. It’s built from the catalogue, so a new title shows up in search a few minutes late.',
+		},
+		{
 			title: 'Scale up before the big match',
 			detail: 'For a cricket final, tens of millions open the app in the last few minutes before the first ball. Hotstar had about 59 million people watching the 2023 World Cup final at once. That rush comes too fast for autoscaling, so Hotstar adds servers ahead of time, and tests with pretend crowds before the day.',
 		},
 	],
 	rows: {
-		edge: 'There are two front doors. Requests to browse and to press play come in through the API gateway. But the video itself comes through a different door: the CDN, which sits close to the viewer.',
+		clients:
+			'Everything starts in an app: on a phone, a smart TV, or the content team’s upload tool. The apps keep very little themselves. They ask the backend for everything they show.',
+		edge: 'There are two front doors. Requests to browse, search and press play come in through the API gateway. But the video itself comes through a different door: the CDN, which sits close to the viewer.',
+		external:
+			'These belong to other companies. Here, it’s the broadcaster, who sends the live picture from the ground. It isn’t ours, so we can’t fix it. We can only cope when it’s late.',
 	},
 	components: [
 		{
@@ -114,8 +126,7 @@ export const videoStreaming: SystemInput = {
 			name: 'Load balancer',
 			kind: 'balancer',
 			layer: 'balancing',
-			summary:
-				'Passes each request from the apps to the least busy copy of the API gateway, and skips any copy that has stopped working.',
+			summary: 'Shares out requests from the apps between the copies of the API gateway.',
 			why: 'The gateway runs as many copies. Something has to share the work out between them.',
 			onFailure:
 				'Nothing reaches the API gateway, so nobody can browse or press play. Films already playing keep going, because the video comes from the CDN.',
@@ -174,6 +185,21 @@ export const videoStreaming: SystemInput = {
 			instances: 6,
 			maxInstances: 60,
 			latencyMs: 10,
+		},
+		{
+			id: 'search-service',
+			name: 'Search service',
+			kind: 'service',
+			layer: 'services',
+			summary:
+				'Finds the titles that match what a viewer types, even with a spelling mistake.',
+			why: 'There are thousands of titles. People need to find one by its name, an actor, or the kind of story.',
+			onFailure: 'Search stops working. Viewers can still browse the home screen and play.',
+			scaling: 'It autoscales. It keeps nothing itself, so any copy can take any request.',
+			capacityPerInstance: 2_000,
+			instances: 4,
+			maxInstances: 40,
+			latencyMs: 20,
 		},
 		{
 			id: 'recommendation-service',
@@ -239,6 +265,22 @@ export const videoStreaming: SystemInput = {
 			latencyMs: 200,
 		},
 		{
+			id: 'live-encoder',
+			name: 'Live encoder',
+			kind: 'worker',
+			layer: 'services',
+			summary:
+				'Turns the live picture from the ground into pieces a couple of seconds long, in every version, as the match happens.',
+			why: 'Everyone watching live needs the same pieces, moments after they happen. Making them once, for everyone, is the only way.',
+			onFailure:
+				'No new pieces are made, so the picture freezes for everyone watching live. That’s why a spare copy is always running, often in another building.',
+			scaling:
+				'It doesn’t autoscale. A spare copy runs the whole time, ready to take over at once.',
+			capacityPerInstance: 4,
+			instances: 2,
+			latencyMs: 1_500,
+		},
+		{
 			id: 'encode-queue',
 			name: 'Encoding queue',
 			kind: 'queue',
@@ -297,10 +339,26 @@ export const videoStreaming: SystemInput = {
 			why: 'The catalogue must be kept safely, and changed in one place, even if the cache is lost.',
 			onFailure:
 				'New titles can’t be added. Viewers barely notice while the cache still has the titles.',
-			scaling: 'It’s small and mostly read, so read-only copies are added when needed.',
+			scaling:
+				'It’s split into a few shards. The cache answers most reads, so it rarely needs more.',
 			capacityPerInstance: 4_000,
 			instances: 3,
 			latencyMs: 6,
+		},
+		{
+			id: 'search-index',
+			name: 'Search index',
+			kind: 'database',
+			layer: 'data',
+			summary:
+				'Every word in every title’s name and description, and the titles it appears in, like the index at the back of a book.',
+			why: 'Looking for a word in every title would be slow. The index finds them all at once.',
+			onFailure: 'Search stops working until it’s back. Browsing and watching carry on.',
+			scaling:
+				'It’s split into shards. It’s built from the catalogue, so a new title shows up in search a few minutes late.',
+			capacityPerInstance: 5_000,
+			instances: 3,
+			latencyMs: 5,
 		},
 		{
 			id: 'history-db',
@@ -324,7 +382,7 @@ export const videoStreaming: SystemInput = {
 			kind: 'storage',
 			layer: 'data',
 			summary:
-				'Every version of every film, in pieces a few seconds long, kept safely. The CDN copies from here.',
+				'Every version of every film, in pieces a few seconds long, kept safely, and the newest pieces of every live match. The CDN copies from here.',
 			why: 'There has to be one complete, safe copy of everything. The CDN only keeps what’s popular nearby.',
 			onFailure:
 				'New films can’t be saved, and the CDN can’t fetch what it doesn’t have. Popular films still play from the CDN.',
@@ -333,6 +391,20 @@ export const videoStreaming: SystemInput = {
 			capacityPerInstance: 5_000,
 			instances: 8,
 			latencyMs: 40,
+		},
+		{
+			id: 'broadcaster',
+			name: 'Broadcaster',
+			kind: 'external',
+			layer: 'external',
+			summary:
+				'The TV company filming the match. It sends the live picture from the ground, as it happens.',
+			why: 'The cameras at the ground belong to the broadcaster. The app only gets the picture.',
+			onFailure: 'No live picture arrives, so live matches stop. Films carry on as normal.',
+			scaling: 'It belongs to another company, so we can’t make it bigger.',
+			capacityPerInstance: 1_000,
+			instances: 1,
+			latencyMs: 1,
 		},
 	],
 	journeys: [
@@ -408,6 +480,72 @@ export const videoStreaming: SystemInput = {
 			],
 		},
 		{
+			id: 'search',
+			name: 'Search for a title',
+			description:
+				'A viewer types a word, and sees the titles that match. The words are looked up in a search index, not in the catalogue.',
+			rps: 3_000,
+			person: 'Meera',
+			scenario: 'sunday',
+			story: 'Meera remembers a film her friend mentioned, with “monsoon” in its name. She types it into search.',
+			hops: [
+				{
+					from: 'viewer-app',
+					to: 'load-balancer',
+					label: 'Search for a word',
+					example: {
+						says: 'Meera’s TV sends what she typed.',
+						data: { viewer: 'Meera', typed: 'monsun' },
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'api-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'The load balancer passes it to the least busy copy of the API gateway.',
+						data: { to: 'API gateway, copy 3 of 8' },
+					},
+				},
+				{
+					from: 'api-gateway',
+					to: 'search-service',
+					label: 'Find matching titles',
+					example: {
+						says: 'The search service fixes the spelling: Meera probably meant “monsoon”.',
+						data: { typed: 'monsun', 'looking for': 'monsoon' },
+					},
+				},
+				{
+					from: 'search-service',
+					to: 'search-index',
+					label: 'Look up the word',
+					example: {
+						says: 'The index lists every title with “monsoon” in its name or description, at once.',
+						data: { word: 'monsoon', answer: '6 titles, best match first' },
+					},
+				},
+				{
+					from: 'search-service',
+					to: 'catalog-service',
+					label: 'Fill in the titles',
+					example: {
+						says: 'The catalogue service adds the pictures and short descriptions.',
+						data: { titles: '6' },
+					},
+				},
+				{
+					from: 'catalog-service',
+					to: 'catalog-cache',
+					label: 'Read them from memory',
+					example: {
+						says: 'All six are in the catalogue cache.',
+						data: { answer: '6 titles, all from memory' },
+					},
+				},
+			],
+		},
+		{
 			id: 'press-play',
 			name: 'Press play',
 			description:
@@ -471,7 +609,7 @@ export const videoStreaming: SystemInput = {
 					to: 'cdn',
 					label: 'Fetch the first few seconds',
 					example: {
-						says: 'The TV fetches the first piece of video from a server in her internet provider’s building, a few kilometres away.',
+						says: 'The TV fetches the first piece of video from a server in her internet provider’s building, a few kilometres away. Nothing is ready yet, so Meera waits for this one.',
 						data: {
 							piece: '4 seconds, from 41:12',
 							version: '1080p',
@@ -495,7 +633,7 @@ export const videoStreaming: SystemInput = {
 			id: 'watch',
 			name: 'Keep watching',
 			description:
-				'While a film plays, the app fetches the next few seconds of video again and again. It picks a sharper or smaller version each time to suit the internet speed, which is called adaptive streaming. Now and then, it saves how far the viewer has got.',
+				'While a film plays, the app fetches the next few seconds of video again and again. It keeps about half a minute ready, called a buffer, so a slow moment doesn’t stop the film. Each time, it picks a sharper or smaller version to suit the internet speed, which is called adaptive streaming. Now and then, it saves how far the viewer has got.',
 			rps: 300_000,
 			person: 'Meera',
 			scenario: 'cdn-down',
@@ -506,8 +644,8 @@ export const videoStreaming: SystemInput = {
 					to: 'cdn',
 					label: 'Fetch the next few seconds',
 					example: {
-						says: 'The TV fetches the next 4 seconds. The internet is fast tonight, so it picks the sharp version.',
-						data: { piece: '4 seconds, at 43:00', version: '1080p' },
+						says: 'The TV fetches the next 4 seconds. It already has the next half minute ready, so Meera doesn’t notice this wait. The internet is fast tonight, so it picks the sharp version.',
+						data: { piece: '4 seconds, at 43:30', version: '1080p' },
 					},
 				},
 				{
@@ -516,7 +654,7 @@ export const videoStreaming: SystemInput = {
 					label: 'Copy it from storage',
 					example: {
 						says: 'Only if the nearby server doesn’t have this piece. Almost always, it does.',
-						data: { piece: '4 seconds, at 43:00' },
+						data: { piece: '4 seconds, at 43:30' },
 					},
 					onMiss: true,
 				},
@@ -529,6 +667,7 @@ export const videoStreaming: SystemInput = {
 						data: { title: 'The Long Monsoon', at: '43:05' },
 					},
 					mode: 'async',
+					// one in ten fetches: a save every 40 seconds, against a piece every 4
 					share: 0.1,
 				},
 				{
@@ -540,7 +679,6 @@ export const videoStreaming: SystemInput = {
 						data: { to: 'API gateway, copy 7 of 8' },
 					},
 					mode: 'async',
-					share: 0.1,
 				},
 				{
 					from: 'api-gateway',
@@ -551,7 +689,6 @@ export const videoStreaming: SystemInput = {
 						data: { viewer: 'Meera', at: '43:05' },
 					},
 					mode: 'async',
-					share: 0.1,
 				},
 				{
 					from: 'history-service',
@@ -562,8 +699,73 @@ export const videoStreaming: SystemInput = {
 						data: { viewer: 'Meera', title: 'The Long Monsoon', at: '43:05' },
 					},
 					mode: 'async',
-					share: 0.1,
 					retries: 1,
+				},
+			],
+		},
+		{
+			id: 'watch-live',
+			name: 'Watch the match live',
+			description:
+				'A viewer watches a live match. The app keeps fetching the newest few seconds from the CDN, a little behind what’s happening at the ground.',
+			rps: 50_000,
+			person: 'Meera',
+			scenario: 'final',
+			story: 'It’s the World Cup final. Meera has been watching on her phone since the toss, along with millions of others. Her phone keeps fetching the newest few seconds.',
+			hops: [
+				{
+					from: 'viewer-app',
+					to: 'cdn',
+					label: 'Fetch the newest few seconds',
+					example: {
+						says: 'Her phone asks for the newest piece of the match. Millions of phones ask for the very same piece at the same moment.',
+						data: {
+							match: 'India v Australia',
+							piece: '2 seconds, 1:58:14 pm',
+							version: '720p',
+						},
+					},
+				},
+				{
+					from: 'cdn',
+					to: 'video-storage',
+					label: 'Copy the newest piece',
+					example: {
+						says: 'Each CDN server fetches each new piece once, then answers everyone near it from its copy.',
+						data: { piece: '2 seconds, 1:58:14 pm' },
+					},
+					onMiss: true,
+				},
+			],
+		},
+		{
+			id: 'live-feed',
+			name: 'Send the live match',
+			description:
+				'The broadcaster sends the live picture from the ground. The live encoder makes it into pieces in every version, and saves them for the CDN. Making each piece takes a moment, so viewers see the match a few seconds late.',
+			rps: 2,
+			person: 'the broadcaster',
+			scenario: 'live-down',
+			story: 'At the ground, the broadcaster’s cameras film the final. Every couple of seconds, the newest stretch of the picture is sent to us.',
+			hops: [
+				{
+					from: 'broadcaster',
+					to: 'live-encoder',
+					label: 'Send the newest moment',
+					example: {
+						says: 'The broadcaster sends the last 2 seconds of the match, straight from the ground.',
+						data: { match: 'India v Australia', piece: '2 seconds, 1:58:14 pm' },
+					},
+				},
+				{
+					from: 'live-encoder',
+					to: 'video-storage',
+					label: 'Save every version',
+					example: {
+						says: 'The live encoder makes 8 versions of those 2 seconds, from small to sharp, and saves them. The CDN fetches them from here.',
+						data: { versions: '8', piece: '2 seconds, 1:58:14 pm' },
+					},
+					calls: 8,
 				},
 			],
 		},
@@ -688,13 +890,13 @@ export const videoStreaming: SystemInput = {
 			description:
 				'India is in the World Cup final. In the last few minutes before the first ball, tens of millions open the app and press play at almost the same moment.',
 			traffic: 1,
-			journeyTraffic: { browse: 4, 'press-play': 25, watch: 5 },
+			journeyTraffic: { browse: 4, 'press-play': 25, 'watch-live': 40 },
 			sudden: true,
 		},
 		{
 			id: 'recs-down',
 			name: 'Recommendations down',
-			description: 'An ordinary evening, but the recommendations service has crashed.',
+			description: 'An ordinary evening, but the recommender has crashed.',
 			traffic: 1,
 			down: ['recommendation-service'],
 		},
@@ -705,6 +907,14 @@ export const videoStreaming: SystemInput = {
 				'An ordinary evening, but the CDN’s video servers go down. Every piece of video has to come from the main video storage instead.',
 			traffic: 1,
 			down: ['cdn'],
+		},
+		{
+			id: 'live-down',
+			name: 'Live encoder down',
+			description:
+				'In the middle of a match, the live encoder and its spare both fail. No new pieces of the match are made.',
+			traffic: 1,
+			down: ['live-encoder'],
 		},
 		{
 			id: 'encoders-down',

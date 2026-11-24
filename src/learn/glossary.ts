@@ -433,6 +433,21 @@ export const glossary: Term[] = [
 		forms: ['scaling ahead', 'scale ahead', 'ahead of time', 'pre-scaling'],
 	},
 	{
+		id: 'buffer',
+		term: 'Buffer',
+		meaning:
+			'Video the app has already fetched but not shown yet, kept ready. If the next piece is slow to arrive, the film keeps playing from the buffer.',
+		like: 'A full water tank, which keeps the taps running when the supply stops for a moment.',
+		forms: ['buffer', 'buffers', 'buffering'],
+	},
+	{
+		id: 'live-streaming',
+		term: 'Live streaming',
+		meaning:
+			'Sending video as it happens. Each moment is made into pieces within seconds, so viewers see it a little after the people who are there.',
+		forms: ['live streaming', 'live stream', 'live video'],
+	},
+	{
 		id: 'cdn',
 		term: 'CDN',
 		meaning:

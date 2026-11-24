@@ -833,7 +833,7 @@ export const rideHailing: SystemInput = {
 						},
 					},
 					mode: 'async',
-					share: 0.04,
+
 					retries: 1,
 				},
 			],
