@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { INK } from '@/diagram/geometry';
 import { useApp } from '@/store';
 import { cx } from './cx';
-import { PauseIcon, PlayIcon } from './icons';
+import { ExpandIcon, PauseIcon, PlayIcon, ShrinkIcon } from './icons';
 
 /** Small labelled numbers, like the ones over the diagram. */
 export function Facts({ facts }: { facts: { label: string; value: string; hint?: string }[] }) {
@@ -63,7 +63,7 @@ export function Legend() {
 	return (
 		<ul
 			aria-label="Legend"
-			className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600"
+			className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600"
 		>
 			<li className="flex items-center gap-1.5">
 				<span className="rounded-full border border-ink bg-white px-1.5 font-mono text-[10px] leading-4 font-semibold text-ink">
@@ -73,41 +73,112 @@ export function Legend() {
 			</li>
 			<li className="flex items-center gap-1.5">{dot('#ef8a3d')}request</li>
 			<li className="flex items-center gap-1.5">{dot('#9b80df')}background work</li>
-			<li className="flex items-center gap-1.5">{dot('#d1492f')}fails</li>
+			<li className="flex items-center gap-1.5">{dot('#d1492f')}failed request</li>
 			<li className="flex items-center gap-1.5">
 				<svg width="22" height="8" viewBox="0 0 22 8" aria-hidden="true">
 					<path d="M1 4h20" stroke={INK} strokeWidth="1.5" strokeDasharray="4 3" />
 				</svg>
-				nobody waits
+				nobody waits for it
 			</li>
 		</ul>
 	);
 }
 
-/** The diagram's paper: things over it at the top, the legend and a pause button below. */
-export function DiagramFrame({ children, over }: { children: ReactNode; over?: ReactNode }) {
+/** A small button in the strip under the diagram; its label shows on wide screens. */
+export function FrameButton({
+	icon,
+	label,
+	title,
+	onClick,
+}: {
+	icon: ReactNode;
+	label: string;
+	title: string;
+	onClick(): void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			title={title}
+			className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100 hover:text-ink"
+		>
+			{icon}
+			<span className="sr-only min-[1400px]:not-sr-only">{label}</span>
+		</button>
+	);
+}
+
+/**
+ * The diagram's paper: things over it at the top; below it, any controls, the
+ * legend, and buttons to pause, for any `tools`, and to fill the screen.
+ */
+export function DiagramFrame({
+	children,
+	over,
+	controls,
+	tools,
+	fill,
+}: {
+	children: ReactNode;
+	over?: ReactNode;
+	/** What you can change, in a strip under the diagram. */
+	controls?: ReactNode;
+	/** More buttons beside Pause. */
+	tools?: ReactNode;
+	/** Offers a button to show it on the whole screen (see useFullScreen). */
+	fill?: { full: boolean; toggle(): void };
+}) {
 	const paused = useApp((s) => s.paused);
 	const setPaused = useApp((s) => s.setPaused);
+	const full = fill?.full ?? false;
+
 	return (
-		<div className="surface diagram-bg relative flex h-[60dvh] min-h-[360px] flex-col overflow-hidden lg:h-auto lg:min-h-0 lg:flex-1">
+		<div
+			className={cx(
+				'surface diagram-bg relative flex flex-col overflow-hidden lg:h-auto lg:min-h-0 lg:flex-1',
+				full
+					? // on the whole screen, a finger drags the diagram rather than the page
+						'h-[85dvh] [&_svg]:touch-none'
+					: 'h-[60dvh] min-h-[360px]',
+			)}
+		>
 			{over && <div className="px-3 pt-3">{over}</div>}
 			<div className="min-h-0 flex-1">
 				<div className="h-full px-2 pt-2">{children}</div>
 			</div>
-			<div className="flex items-center gap-3 border-t border-slate-200 bg-card/80 px-3 py-2">
+			{controls}
+			<div className="flex items-center gap-3 border-t border-slate-200 bg-card/80 px-3 py-1.5">
 				<Legend />
-				<button
-					type="button"
-					onClick={() => setPaused(!paused)}
-					className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100 hover:text-ink"
-				>
-					{paused ? (
-						<PlayIcon width={12} height={12} />
-					) : (
-						<PauseIcon width={12} height={12} />
+				<div className="ml-auto flex shrink-0 items-center gap-1">
+					<FrameButton
+						icon={
+							paused ? (
+								<PlayIcon width={12} height={12} />
+							) : (
+								<PauseIcon width={12} height={12} />
+							)
+						}
+						label={paused ? 'Play' : 'Pause'}
+						title={paused ? 'Start the moving dots again' : 'Stop the moving dots'}
+						onClick={() => setPaused(!paused)}
+					/>
+					{tools}
+					{fill && (
+						<FrameButton
+							icon={
+								full ? (
+									<ShrinkIcon width={12} height={12} />
+								) : (
+									<ExpandIcon width={12} height={12} />
+								)
+							}
+							label={full ? 'Exit full screen' : 'Full screen'}
+							title={full ? 'Back to the page (Esc)' : 'Fill the screen'}
+							onClick={fill.toggle}
+						/>
 					)}
-					{paused ? 'Play' : 'Pause'}
-				</button>
+				</div>
 			</div>
 		</div>
 	);

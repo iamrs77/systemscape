@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { formatMs, formatRps, formatShare, formatUtilization } from '@/sim/format';
-import { MAX_INSTANCES, useApp, useChallenge, useSystem } from '@/store';
+import { MAX_INSTANCES, useApp, useSystem } from '@/store';
 import { kindLabel, statusColor, statusLabel } from '@/theme';
 import { annotate, namesOf } from '@/learn/glossary';
 import { Badge, Button, Meter } from './controls';
@@ -10,7 +10,6 @@ import { CrossIcon, MinusIcon, PlusIcon, PowerIcon } from './icons';
 /** Everything about one component: what it does, how it's doing, and what you can change. */
 export function Inspector({ componentId }: { componentId: string }) {
 	const system = useSystem();
-	const challenge = useChallenge();
 	const state = useApp((s) => s.result.components[componentId]);
 	const input = useApp((s) => s.input);
 	const select = useApp((s) => s.select);
@@ -26,7 +25,6 @@ export function Inspector({ componentId }: { componentId: string }) {
 	const down = state.status === 'down';
 	const color = statusColor[state.status];
 	const instances = input.instances[component.id] ?? component.instances;
-	const stuckDown = down && challenge?.down.includes(component.id);
 	const [summary, why, onFailure, scaling] = annotate(
 		[component.summary, component.why, component.onFailure, component.scaling],
 		namesOf(system),
@@ -41,7 +39,7 @@ export function Inspector({ componentId }: { componentId: string }) {
 				<div className="flex items-center gap-2">
 					<Badge>{kindLabel[component.kind]}</Badge>
 					{!isClient && <Badge color={color}>{statusLabel[state.status]}</Badge>}
-					{state.breakerOpen && <Badge color="#f59e0b">breaker open</Badge>}
+					{state.breakerOpen && <Badge color="#f59e0b">breaker tripped</Badge>}
 					<Button
 						size="sm"
 						variant="ghost"
@@ -76,12 +74,10 @@ export function Inspector({ componentId }: { componentId: string }) {
 					<dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs tabular-nums">
 						<Row label="Getting">{formatRps(state.load)}</Row>
 						<Row label="Can handle">{formatRps(state.capacity)}</Row>
-						<Row label="Response time">{down ? '–' : formatMs(state.latencyMs)}</Row>
+						<Row label="Time to answer">{down ? '–' : formatMs(state.latencyMs)}</Row>
 						<Row label="Failing">{formatShare(state.failRate)}</Row>
 						{state.load > state.demand * 1.01 && (
-							<Row label="Of which retries">
-								{formatRps(state.load - state.demand)}
-							</Row>
+							<Row label="From retries">{formatRps(state.load - state.demand)}</Row>
 						)}
 						{component.hitRate !== undefined && (
 							<Row label="Answers from memory">
@@ -91,12 +87,12 @@ export function Inspector({ componentId }: { componentId: string }) {
 					</dl>
 
 					<div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
-						{scalable && <span className="text-xs text-slate-500">Instances</span>}
+						{scalable && <span className="text-xs text-slate-500">Copies</span>}
 						{scalable && (
 							<div className="flex items-center rounded-lg border border-slate-200">
 								<button
 									type="button"
-									aria-label="Remove an instance"
+									aria-label="Remove a copy"
 									disabled={instances <= 1}
 									onClick={() => setInstances(component.id, instances - 1)}
 									className="grid size-7 place-items-center text-slate-600 hover:text-slate-900 disabled:opacity-30"
@@ -104,14 +100,14 @@ export function Inspector({ componentId }: { componentId: string }) {
 									<MinusIcon width={13} height={13} />
 								</button>
 								<output
-									aria-label="Instances set by you"
+									aria-label="Copies set by you"
 									className="w-8 text-center text-sm font-semibold text-slate-900 tabular-nums"
 								>
 									{instances}
 								</output>
 								<button
 									type="button"
-									aria-label="Add an instance"
+									aria-label="Add a copy"
 									disabled={instances >= MAX_INSTANCES}
 									onClick={() => setInstances(component.id, instances + 1)}
 									className="grid size-7 place-items-center text-slate-600 hover:text-slate-900 disabled:opacity-30"
@@ -122,19 +118,13 @@ export function Inspector({ componentId }: { componentId: string }) {
 						)}
 						{state.autoscaled && (
 							<span className="text-xs text-cyan-700">
-								autoscaled to {state.instances}
+								now {state.instances}, added by autoscaling
 							</span>
 						)}
 						<Button
 							size="sm"
 							variant={down ? 'plain' : 'danger'}
 							className="ml-auto"
-							disabled={stuckDown}
-							title={
-								stuckDown
-									? 'Part of the challenge: it can’t be fixed in time'
-									: undefined
-							}
 							onClick={() => setDown(component.id, !down)}
 						>
 							<PowerIcon width={13} height={13} />
@@ -143,10 +133,10 @@ export function Inspector({ componentId }: { componentId: string }) {
 					</div>
 					<p className="text-[11px] text-slate-500">
 						{!scalable
-							? 'Not ours to scale: another company runs it, with its own limits.'
+							? 'Another company runs this, so we can’t add copies. It has its own limits.'
 							: component.maxInstances === undefined
-								? 'Doesn’t autoscale: instances only change when you change them.'
-								: `Autoscales up to ${component.maxInstances} instances.`}
+								? 'This doesn’t autoscale. The number of copies changes only when you change it.'
+								: `Autoscaling can grow this to ${component.maxInstances} copies.`}
 					</p>
 				</div>
 			)}
@@ -160,7 +150,7 @@ export function Inspector({ componentId }: { componentId: string }) {
 						<Explained pieces={onFailure!} />
 					</Explain>
 				)}
-				<Explain label="How it scales">
+				<Explain label="How it grows">
 					<Explained pieces={scaling!} />
 				</Explain>
 			</dl>
@@ -168,7 +158,7 @@ export function Inspector({ componentId }: { componentId: string }) {
 			{usedBy.length > 0 && (
 				<div>
 					<h3 className="text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">
-						Part of
+						Used in
 					</h3>
 					<ul className="mt-1.5 flex flex-wrap gap-1.5">
 						{usedBy.map((j) => (

@@ -2,11 +2,20 @@ import type { System } from '@/model/schema';
 import type { SimInput, SimResult } from './engine';
 import { formatMs, formatShare, formatUtilization } from './format';
 
+/** Names in a sentence: “A, B and C”. */
+function listOf(names: string[]) {
+	return names.length > 1
+		? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+		: (names[0] ?? '');
+}
+
 export type Insight = {
 	level: 'bad' | 'warn' | 'info' | 'good';
 	text: string;
 	/** The component it's about, so the UI can link to it. */
 	componentId?: string;
+	/** Retries piling extra calls onto a part that's already struggling. */
+	retryStorm?: boolean;
 };
 
 const order = { bad: 0, warn: 1, info: 2, good: 3 } as const;
@@ -38,11 +47,21 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 				if (required && failRate > (worst?.failRate ?? 0.01))
 					worst = { id: hop.to, failRate };
 			});
+			const succeed =
+				formatShare(state.success) === '0%'
+					? `${journey.name}: every request fails.`
+					: `${journey.name}: only ${formatShare(state.success)} succeed.`;
+			const culprit = worst && result.components[worst.id]?.status;
+			const why = !worst
+				? ''
+				: culprit === 'down'
+					? ` ${name(worst.id)} is down.`
+					: culprit === 'overloaded'
+						? ` ${name(worst.id)} is too busy, so it turns requests away.`
+						: ` Calls to ${name(worst.id)} are failing.`;
 			insights.push({
 				level: 'bad',
-				text: worst
-					? `${journey.name}: only ${formatShare(state.success)} succeed, because calls to ${name(worst.id)} are failing.`
-					: `${journey.name}: only ${formatShare(state.success)} succeed.`,
+				text: `${succeed}${why}`,
 				componentId: worst?.id,
 			});
 		} else if (state.latencyMs > SLOW_MS) {
@@ -53,7 +72,7 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 			});
 			insights.push({
 				level: 'warn',
-				text: `${journey.name} works but takes ${formatMs(state.latencyMs)}, mostly waiting for ${name(slowest.id)}.`,
+				text: `${journey.name}: slow, but working. It takes ${formatMs(state.latencyMs)}, mostly waiting for ${name(slowest.id)}.`,
 				componentId: slowest.id,
 			});
 		}
@@ -70,7 +89,7 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 		if (state.backgroundFailure > 0.01) {
 			insights.push({
 				level: 'warn',
-				text: `${journey.name}: ${formatShare(state.backgroundFailure)} of the background work afterwards fails. Users don’t notice yet, but it piles up for later.`,
+				text: `${journey.name}: ${formatShare(state.backgroundFailure)} of the background work fails. People don’t notice yet, but the unfinished work piles up.`,
 			});
 		}
 	}
@@ -88,18 +107,20 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 			});
 		} else if (state.status === 'overloaded') {
 			let why = '';
-			if (component.maxInstances === undefined) {
-				why = ' It can’t add instances by itself: someone has to add them.';
+			if (component.kind === 'external') {
+				why = ' Another company runs it, so we can’t add copies.';
+			} else if (component.maxInstances === undefined) {
+				why = ' It can’t add copies by itself. Someone has to add them.';
 			} else if (!input.autoscale) {
 				why = ' Autoscaling is off.';
 			} else if (input.sudden) {
-				why = ' The rush came too suddenly for autoscaling to keep up.';
+				why = ' The rush came too fast for autoscaling to keep up.';
 			} else if (state.instances >= component.maxInstances) {
-				why = ` Autoscaling has hit its limit of ${component.maxInstances} instances.`;
+				why = ` Autoscaling has reached its limit of ${component.maxInstances} copies.`;
 			}
 			insights.push({
 				level: 'bad',
-				text: `${component.name} is overloaded: asked for ${formatUtilization(state.utilization)} of what it can handle, so it fails ${formatShare(state.failRate)} of calls.${why}`,
+				text: `${component.name} is overloaded. It gets ${formatUtilization(state.utilization)} of the requests it can handle, so ${formatShare(state.failRate)} of them fail.${why}`,
 				componentId: id,
 			});
 		}
@@ -112,15 +133,16 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 		) {
 			insights.push({
 				level: 'warn',
-				text: `Retries add ${formatShare(state.load / state.demand - 1)} more calls to ${component.name}, on top of what it already can’t handle: a retry storm.`,
+				text: `Retries add ${formatShare(state.load / state.demand - 1)} more calls to ${component.name}, which already can’t keep up. This is called a retry storm.`,
 				componentId: id,
+				retryStorm: true,
 			});
 		}
 
 		if (state.breakerOpen) {
 			insights.push({
 				level: 'info',
-				text: `Circuit breakers have tripped for ${component.name}: callers stop waiting for it and fail fast instead.`,
+				text: `Circuit breakers have tripped for ${component.name}. Other parts stop waiting for it and give up straight away.`,
 				componentId: id,
 			});
 		}
@@ -129,7 +151,7 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 	for (const [id, journeys] of degraded) {
 		insights.push({
 			level: 'info',
-			text: `${journeys.join(', ')} carry on without ${name(id)} when it fails: worse, but still working. That’s graceful degradation.`,
+			text: `${listOf(journeys.map((j) => `“${j}”`))} still ${journeys.length === 1 ? 'works' : 'work'} without ${name(id)}, just not as well. This is called graceful degradation.`,
 			componentId: id,
 		});
 	}
@@ -138,7 +160,7 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 	if (autoscaled.length > 0) {
 		insights.push({
 			level: 'info',
-			text: `Autoscaling added instances to ${autoscaled.map((c) => c.name).join(', ')}.`,
+			text: `Autoscaling added copies of ${listOf(autoscaled.map((c) => c.name))}.`,
 		});
 	}
 
@@ -147,7 +169,7 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 		insights.push({
 			level: 'good',
 			text: busiest
-				? `Everything is working. The busiest part is ${name(busiest)}, at ${formatUtilization(result.components[busiest]!.utilization)}.`
+				? `Everything is working. The busiest part is ${name(busiest)}, at ${formatUtilization(result.components[busiest]!.utilization)} busy.`
 				: 'Everything is working, with room to spare.',
 			componentId: busiest ?? undefined,
 		});

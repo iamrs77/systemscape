@@ -1,6 +1,6 @@
 # 8. A drawn diagram and guided lessons, instead of a 3D city
 
-- **Status:** Accepted
+- **Status:** Accepted; challenges replaced by Explore freely in [ADR 0009](0009-explore-instead-of-challenges.md)
 - **Date:** 2026-11-23
 - **Replaces:** [ADR 0004](0004-html-labels.md), and the 3D view in [ADR 0006](0006-tech-stack.md)
 

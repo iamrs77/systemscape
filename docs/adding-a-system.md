@@ -1,6 +1,6 @@
 # Adding a system
 
-A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the diagram, the lessons, the simulation, the panels and the challenges all come from the data. `src/systems/rideHailing.ts` is the complete example.
+A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the diagram, the lessons, the simulation and the panels all come from the data. `src/systems/rideHailing.ts` is the complete example.
 
 ## 1. Describe it
 
@@ -16,7 +16,6 @@ export const videoStreaming: SystemInput = {
 	components: [...],
 	journeys: [...],
 	presets: [...],
-	challenges: [...],
 };
 ```
 
@@ -88,7 +87,7 @@ A journey is something people do, with its requests per second at normal traffic
 
 A journey's `person` and `story` are optional too: with them, its lesson follows that person (“Meera waits for this”) and opens with the scene.
 
-## 4. Scenarios and challenges
+## 4. Scenarios
 
 ```ts
 presets: [
@@ -96,28 +95,12 @@ presets: [
 	{ id: 'final', name: 'Cup final', description: '…', traffic: 3,
 	  journeyTraffic: { 'start-watching': 8 }, sudden: true },
 ],
-challenges: [
-	{
-		id: 'origin-overload',
-		title: 'The edge cache restarts during the final',
-		story: 'The situation, in a few sentences.',
-		preset: 'final',
-		down: ['edge-cache'],
-		goal: { journey: 'start-watching', minSuccess: 0.99, maxLatencyMs: 1000 },
-		hint: 'A nudge, not the answer.',
-		lesson: 'What the fix teaches. Shown once it’s solved.',
-	},
-],
 ```
 
-The first preset is where the system starts. A challenge's `down` components can't be brought back while it's running, and its scenario's traffic is locked: the player has to work around the problem.
+The first preset is where the system starts. Each journey's lesson ends on the scenario that's hardest on it, so give the system at least one where something breaks.
 
-## 5. Register it and test it
+## 5. Register it and check it
 
-Add it to `systems` in `src/systems/index.ts` (and take it off `comingSoon`), then write `src/systems/<name>.test.ts` like `rideHailing.test.ts`:
+Add it to `systems` in `src/systems/index.ts` (and take it off `comingSoon`).
 
-- the normal scenarios run without failures;
-- each challenge **fails its goal at the start**;
-- each challenge **is solved** by the fix you have in mind.
-
-`parseSystem` runs when the app loads and in the tests, and lists every problem at once: a hop to a component that doesn't exist, a hop from somewhere the journey hasn't reached, a cache without a hit rate, a challenge naming a missing scenario. Then tune capacities until the scenarios tell the story you want: the explanations panel (or `explain` in a test) says what's failing and why.
+`parseSystem` runs when the app loads, and lists every problem at once: a hop to a component that doesn't exist, a hop from somewhere the journey hasn't reached, a cache without a hit rate. Then tune capacities until the scenarios tell the story you want: open Explore freely on each one, and the panel beside the diagram says what's failing and why. The normal scenario should run without failures.

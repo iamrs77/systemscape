@@ -8,9 +8,7 @@ import { systems } from '@/systems';
  * folder, with no server to send every path to the app (ADR 0007).
  */
 export type Mode =
-	| { kind: 'learn'; lessonId: string; /** From 0. */ step: number }
-	| { kind: 'practice'; challengeId: string }
-	| { kind: 'explore' };
+	{ kind: 'learn'; lessonId: string; /** From 0. */ step: number } | { kind: 'explore' };
 
 export type Route = { page: 'home' } | { page: 'system'; systemId: string; mode: Mode };
 
@@ -18,13 +16,11 @@ export const homeHref = '#/';
 export const systemHref = (systemId: string) => `#/${systemId}`;
 export const lessonHref = (systemId: string, lessonId: string, step = 0) =>
 	`#/${systemId}/learn/${lessonId}${step > 0 ? `/${step + 1}` : ''}`;
-export const practiceHref = (systemId: string, challengeId: string) =>
-	`#/${systemId}/practice/${challengeId}`;
 export const exploreHref = (systemId: string) => `#/${systemId}/explore`;
 
 /**
  * Reads a route from a hash. An unknown system is the home page; an unknown
- * lesson or challenge in a known system is its first lesson.
+ * lesson in a known system is its first lesson.
  */
 export function parseRoute(hash: string): Route {
 	const [systemId = '', section, target, step] = hash
@@ -37,9 +33,6 @@ export function parseRoute(hash: string): Route {
 	const at = (mode: Mode): Route => ({ page: 'system', systemId, mode });
 
 	if (section === 'explore') return at({ kind: 'explore' });
-	if (section === 'practice' && system.challenges.some((c) => c.id === target)) {
-		return at({ kind: 'practice', challengeId: target! });
-	}
 	const lessons = [OVERVIEW, ...system.journeys.map((j) => j.id)];
 	const lessonId = section === 'learn' && lessons.includes(target ?? '') ? target! : OVERVIEW;
 	const n = Number(step);

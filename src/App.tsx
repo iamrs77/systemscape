@@ -27,31 +27,16 @@ export function App() {
 	);
 }
 
-/** One system: the course beside it, and a lesson, a challenge or the sandbox. */
+/** One system: the course beside it, and a lesson or the sandbox. */
 function Explorer({ systemId, mode }: { systemId: string; mode: Mode }) {
 	const system = useSystem();
 	const selectSystem = useApp((s) => s.selectSystem);
-	const challengeId = useApp((s) => s.challengeId);
-	const startChallenge = useApp((s) => s.startChallenge);
-	const leaveChallenge = useApp((s) => s.leaveChallenge);
-	const wantedChallenge = mode.kind === 'practice' ? mode.challengeId : null;
-	const ready = system.id === systemId && challengeId === wantedChallenge;
+	const ready = system.id === systemId;
 
-	// the URL says which system and which challenge; the app's state follows it
+	// the URL says which system; the app's state follows it
 	useLayoutEffect(() => {
-		if (system.id !== systemId) selectSystem(systemId);
-		else if (wantedChallenge && challengeId !== wantedChallenge)
-			startChallenge(wantedChallenge);
-		else if (!wantedChallenge && challengeId) leaveChallenge();
-	}, [
-		system.id,
-		systemId,
-		wantedChallenge,
-		challengeId,
-		selectSystem,
-		startChallenge,
-		leaveChallenge,
-	]);
+		if (!ready) selectSystem(systemId);
+	}, [ready, systemId, selectSystem]);
 
 	useEffect(() => {
 		document.title = `${system.name} · Systemscape`;

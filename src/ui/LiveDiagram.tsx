@@ -3,7 +3,7 @@ import { Diagram, type EdgeLook } from '@/diagram/Diagram';
 import { edgeKey, journeyComponents } from '@/diagram/layout';
 import { useApp, useSystem } from '@/store';
 
-/** The diagram for exploring freely and for challenges: the app's own conditions and result. */
+/** The diagram for exploring freely: the app’s own conditions and result. */
 export function LiveDiagram() {
 	const system = useSystem();
 	const result = useApp((s) => s.result);

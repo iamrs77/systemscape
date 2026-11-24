@@ -26,14 +26,18 @@ export function formatUtilization(utilization: number) {
 	return `${Math.round(utilization * 100)}%`;
 }
 
-/** A wait next to something everyone knows: a blink takes about a tenth of a second. */
+/**
+ * A wait next to something everyone knows: a blink takes about a tenth of a
+ * second. Said after the time itself, so it doesn't repeat it.
+ */
 export function feelOfMs(ms: number) {
 	if (ms < 1) return 'instant';
 	if (ms < 40) return 'too quick to notice';
-	if (ms < 80) return 'under a blink';
-	if (ms < 150) return 'about a blink';
+	if (ms < 80) return 'less than a blink';
+	if (ms < 150) return 'about one blink';
 	if (ms < 995) return `about ${Math.round(ms / 100)} blinks`;
-	return `${(ms / 1000).toFixed(1)} seconds: you’d notice`;
+	if (ms < 3000) return 'long enough to notice';
+	return 'a long wait';
 }
 
 /** Requests a second, as how many arrive in a minute: 250/s is 15,000 every minute. */
@@ -50,6 +54,8 @@ export function perMinute(rps: number) {
 export function feelOfShare(success: number) {
 	if (success >= 0.999) return 'every one';
 	if (success >= 0.99) return 'almost every one';
+	if (success < 0.001) return 'all fail';
+	if (success < 0.01) return 'almost all fail';
 	const fail = 1 - success;
 	const [best] = [2, 3, 4, 5, 6, 8, 10, 20, 50, 100]
 		.map((n) => ({ n, k: Math.max(1, Math.round(fail * n)) }))

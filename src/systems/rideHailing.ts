@@ -9,11 +9,11 @@ export const rideHailing: SystemInput = {
 	id: 'ride-hailing',
 	name: 'Ride-hailing app',
 	tagline:
-		'Matching riders with nearby drivers in seconds, while every driver reports where they are.',
+		'Finds a nearby driver for each rider in seconds, while every driver’s phone keeps sharing its location.',
 	basis: 'inspired',
 	description: [
-		'Riders ask for a ride; the app finds a nearby driver, shows the fare and the driver coming, and charges the rider at the end. Underneath, every online driver sends their position every few seconds, so the system always knows who is where.',
-		'This is a simplified design based on public talks and engineering posts, not any company’s actual system. The traffic numbers are illustrative, for one big city on an ordinary evening.',
+		'A rider asks for a ride. The app finds a nearby driver and shows the price and the car on its way. At the end, it charges the rider. Behind the scenes, every working driver’s phone sends its location every few seconds. So the system always knows where every driver is.',
+		'This is a simpler version, based on public talks and blog posts by engineers. It is not any company’s real system. The traffic numbers are examples, for one big city on an ordinary evening.',
 	],
 	sources: [
 		{
@@ -59,28 +59,28 @@ export const rideHailing: SystemInput = {
 	],
 	decisions: [
 		{
-			title: 'Driver positions live in memory, not in the main database',
-			detail: 'Tens of thousands of position updates arrive every second, and each is out of date seconds later. Only the latest position matters for matching, so it’s kept in an in-memory index split by area. The full history goes to the event stream for anything that needs it later.',
+			title: 'Driver locations are kept in memory, not in the main database',
+			detail: 'Tens of thousands of location updates arrive every second, and each one is old a few seconds later. Matching only needs each driver’s latest location. So that is kept in the computer’s memory, which is much faster than a disk. It’s grouped by area of the city. The full history goes to the event stream, for anything that needs it later.',
 		},
 		{
-			title: 'The map is cut into cells',
-			detail: 'To find drivers near a rider, dispatch looks in the rider’s cell and the cells around it, instead of measuring the distance to every driver. In 2015 Uber’s index used Google’s S2 cells. Uber later open-sourced H3, a grid of hexagons it uses for pricing and dispatch: with hexagons, all six neighbours are the same distance away.',
+			title: 'The map is cut into small cells',
+			detail: 'To find drivers near a rider, Dispatch looks only in the rider’s cell and the cells around it. It doesn’t measure the distance to every driver in the city. In 2015, Uber used a grid of cells made by Google. Later, Uber made a grid of hexagons, called H3, for pricing and matching, and shared it for free. With hexagons, all six neighbouring cells are the same distance away.',
 		},
 		{
-			title: 'A live connection to every app',
-			detail: 'Ride offers and driver positions are pushed to the apps over connections kept open, instead of the apps asking again and again. Uber said apps polling for updates once made up 80% of its API gateway’s requests. The cost is keeping over a million connections open and moving them when a server restarts.',
+			title: 'A live connection to every phone',
+			detail: 'The system sends ride offers and driver locations to the apps over connections that stay open. Without them, the apps would ask “anything new?” again and again. Uber said this asking once made up 80% of the requests to its API gateway. The cost is keeping over a million connections open, and moving them to another server when one restarts.',
 		},
 		{
-			title: 'Matching can work without ETAs',
-			detail: 'Dispatch ranks nearby drivers by how long they’d take to arrive, which needs the routing service. If routing is slow or down, dispatch falls back to straight-line distance: matches get a little worse, but riders still get a car.',
+			title: 'Matching works even without arrival times',
+			detail: 'Dispatch puts nearby drivers in order by how soon they could arrive. To know that, it asks the ETA service. If the ETA service is slow or down, Dispatch uses the straight-line distance on the map instead. Matches get a little worse, but riders still get a car.',
 		},
 		{
 			title: 'Payment happens after the trip, in the background',
-			detail: 'Ending a trip doesn’t wait for the card to be charged. The charge goes through the event stream and is retried, so a payment provider outage doesn’t stop drivers from finishing trips. The cost: some charges fail later and need following up. Uber’s payments platform works mostly in the background like this, recording every charge in a ledger whose entries must add up to zero.',
+			detail: 'When a trip ends, the app doesn’t wait for the card to be charged. The charge goes through the event stream and is retried if it fails. So if the payment provider is down, drivers can still finish trips. The cost: some charges fail later, and someone has to follow them up. Uber’s real payments system works mostly in the background like this. It writes every charge in a ledger, which is a list of all the money that moves. The entries must add up to zero, so no money appears or disappears.',
 		},
 		{
 			title: 'An event stream connects everything else',
-			detail: 'Every position update and trip change is published to an event stream. Surge pricing, analytics and fraud checks read from it without slowing down the trip itself.',
+			detail: 'Every driver location and every trip change is added to an event stream. Other parts read from it: surge pricing, reports and fraud checks. None of them slow down the trip itself.',
 		},
 	],
 	components: [
@@ -91,8 +91,8 @@ export const rideHailing: SystemInput = {
 			layer: 'clients',
 			summary: 'Where riders check prices, ask for a ride and watch their driver arrive.',
 			why: 'It’s how riders use the service.',
-			onFailure: 'Not part of the simulation: it stands for the riders.',
-			scaling: 'Runs on riders’ phones.',
+			onFailure: 'This app stands for the riders, so the simulation doesn’t make it fail.',
+			scaling: 'It runs on each rider’s own phone, so there’s nothing to grow.',
 		},
 		{
 			id: 'driver-app',
@@ -100,10 +100,10 @@ export const rideHailing: SystemInput = {
 			kind: 'client',
 			layer: 'clients',
 			summary:
-				'Sends the driver’s position every few seconds, receives ride offers, and ends trips.',
-			why: 'It’s how drivers work, and where every position update comes from.',
-			onFailure: 'Not part of the simulation: it stands for the drivers.',
-			scaling: 'Runs on drivers’ phones.',
+				'Sends the driver’s location every few seconds, gets ride offers, and ends trips.',
+			why: 'It’s how drivers do their work. Every location update starts here.',
+			onFailure: 'This app stands for the drivers, so the simulation doesn’t make it fail.',
+			scaling: 'It runs on each driver’s own phone, so there’s nothing to grow.',
 		},
 		{
 			id: 'load-balancer',
@@ -111,12 +111,12 @@ export const rideHailing: SystemInput = {
 			kind: 'balancer',
 			layer: 'balancing',
 			summary:
-				'Receives every request from the apps and passes it to whichever copy of a gateway is least busy.',
-			why: 'The gateways run as several copies. Something has to spread requests across them, and stop sending any to a copy that has crashed.',
+				'Receives every request from the apps and passes it to the least busy copy of a gateway.',
+			why: 'Each gateway runs as several copies. Something has to share the requests out between them. It also stops sending requests to a copy that has crashed.',
 			onFailure:
-				'Nothing gets in: every journey fails at once. That’s why it runs as a few copies itself, each able to take over.',
+				'Nothing gets in, and every journey fails at once. That’s why it runs as a few copies too, and each one can take over.',
 			scaling:
-				'It only passes requests on, so it’s fast: a couple of copies handle a whole city. More are added as traffic grows.',
+				'It only passes requests on, so it’s very fast. Two copies can handle a whole city. More are added as traffic grows.',
 			capacityPerInstance: 60_000,
 			instances: 2,
 			maxInstances: 8,
@@ -128,10 +128,12 @@ export const rideHailing: SystemInput = {
 			kind: 'gateway',
 			layer: 'edge',
 			summary:
-				'The front door for app requests: checks who’s calling, limits abuse, and routes each request to the right service.',
-			why: 'One place for logins, rate limits and routing, so services don’t each do it.',
-			onFailure: 'Nothing gets in: no prices, no rides, no trips ending.',
-			scaling: 'Stateless, so it autoscales easily behind a load balancer.',
+				'The front door for requests from the apps. It checks who is asking, stops anyone sending too many requests, and sends each request to the right service.',
+			why: 'Checking who is signed in, limiting requests and picking the right service all happen in one place. So each service doesn’t have to do them itself.',
+			onFailure:
+				'Nothing gets in. Riders can’t see prices or book rides, and drivers can’t end trips.',
+			scaling:
+				'It keeps nothing between requests, so any copy can take any request. That makes autoscaling easy: the load balancer just spreads requests over more copies.',
 			capacityPerInstance: 6_000,
 			instances: 3,
 			maxInstances: 40,
@@ -143,12 +145,12 @@ export const rideHailing: SystemInput = {
 			kind: 'gateway',
 			layer: 'edge',
 			summary:
-				'Keeps a live connection open to every app, to receive driver positions and push ride offers and the driver’s position to riders.',
-			why: 'Pushing over an open connection is faster and cheaper than every app asking for updates again and again.',
+				'Keeps a live connection open to every phone, like a phone call that stays connected. Drivers send their location through it. Ride offers and the driver’s location go back to the phones the same way, straight away.',
+			why: 'Without it, every phone would keep asking “anything new?” every few seconds. An open connection is faster and much cheaper.',
 			onFailure:
-				'Drivers’ positions stop arriving and offers can’t reach them: matching stalls within seconds.',
+				'Driver locations stop coming in, and drivers stop getting ride offers. Within seconds, no new rides can be matched.',
 			scaling:
-				'Each server holds a share of the connections; more servers hold more. Connections move when a server restarts.',
+				'Each server holds some of the open connections, so more servers hold more. When a server restarts, its phones connect to another one.',
 			capacityPerInstance: 20_000,
 			instances: 4,
 			maxInstances: 40,
@@ -160,11 +162,12 @@ export const rideHailing: SystemInput = {
 			kind: 'service',
 			layer: 'services',
 			summary:
-				'Takes each driver position update, files it under the right map cell, and publishes it to the event stream.',
-			why: 'The busiest flow in the system needs its own service, kept simple and fast.',
+				'Takes each new driver location, files it under the right map cell, and adds it to the event stream.',
+			why: 'Driver locations are the busiest work in the whole system. They get their own service, kept simple and fast.',
 			onFailure:
-				'Positions go stale: dispatch matches riders with drivers who have already moved.',
-			scaling: 'Stateless; autoscales with the number of online drivers.',
+				'Driver locations get old. Dispatch then matches riders with drivers who have already moved away.',
+			scaling:
+				'It keeps nothing between requests, so autoscaling just adds copies as more drivers come online.',
 			capacityPerInstance: 8_000,
 			instances: 6,
 			maxInstances: 60,
@@ -176,10 +179,11 @@ export const rideHailing: SystemInput = {
 			kind: 'service',
 			layer: 'services',
 			summary:
-				'Works out the fare for a trip, including the surge multiplier for the area right now.',
-			why: 'Riders see a price before they ask for a ride, many times more often than they book.',
+				'Works out the price of a trip. If the area is busy right now, the price is multiplied, for example by 1.2. This is called surge pricing.',
+			why: 'Riders see a price before they book. They check prices many more times than they actually book.',
 			onFailure: 'Riders can’t see a price, so they can’t ask for a ride.',
-			scaling: 'Stateless; autoscales. It leans on the surge cache to stay cheap.',
+			scaling:
+				'It keeps nothing between requests, so autoscaling can add copies. It reads the surge from the surge cache, which saves a lot of work.',
 			capacityPerInstance: 2_500,
 			instances: 3,
 			maxInstances: 40,
@@ -191,11 +195,11 @@ export const rideHailing: SystemInput = {
 			kind: 'service',
 			layer: 'services',
 			summary:
-				'Finds available drivers in the rider’s map cell and the cells around it, ranks them by arrival time, and offers the ride.',
-			why: 'Matching is the core of the product: fast, good matches keep riders and drivers happy.',
-			onFailure: 'No one gets matched: every ride request fails.',
+				'Finds free drivers in the rider’s map cell and the cells around it. It puts them in order by how soon they can arrive, and offers the ride.',
+			why: 'Matching riders with drivers is the heart of the app. Fast, good matches keep riders and drivers happy.',
+			onFailure: 'No one gets matched, so every ride request fails.',
 			scaling:
-				'Autoscales, but slowly: new instances need a few minutes to start and warm up, too slow for a sudden rush.',
+				'It autoscales, but slowly. A new copy needs a few minutes to start and get ready. That’s too slow for a sudden rush.',
 			capacityPerInstance: 300,
 			instances: 3,
 			maxInstances: 30,
@@ -207,12 +211,12 @@ export const rideHailing: SystemInput = {
 			kind: 'service',
 			layer: 'services',
 			summary:
-				'Works out how long a driver would take to reach a point, on real roads with live traffic.',
-			why: 'Ranking drivers by arrival time gives better matches than straight-line distance.',
+				'Works out how long a driver would take to reach a place. It uses real roads, and how busy they are right now.',
+			why: 'A driver who looks close on the map can be far away by road. So arrival time gives better matches than straight-line distance.',
 			onFailure:
-				'Dispatch falls back to straight-line distance, and riders don’t see an arrival time: worse, but still working.',
+				'Dispatch uses the straight-line distance instead, and riders don’t see an arrival time. It’s worse, but rides still work.',
 			scaling:
-				'Route calculations are heavy; it autoscales, but each instance handles far fewer requests than most services.',
+				'Working out routes takes a lot of computing. It autoscales, but each copy handles far fewer requests than most services.',
 			capacityPerInstance: 900,
 			instances: 6,
 			maxInstances: 60,
@@ -224,11 +228,11 @@ export const rideHailing: SystemInput = {
 			kind: 'service',
 			layer: 'services',
 			summary:
-				'Owns each trip from request to drop-off: who the rider and driver are, and what stage the trip is at.',
-			why: 'One place decides a trip’s state, so the rider and driver apps always agree.',
-			onFailure: 'Rides can’t be created and trips can’t end.',
+				'Looks after each trip from booking to drop-off. It knows who the rider and driver are, and what stage the trip is at.',
+			why: 'Only one part decides what stage a trip is at. So the rider’s app and the driver’s app always agree.',
+			onFailure: 'New rides can’t be booked, and trips can’t end.',
 			scaling:
-				'Stateless; autoscales. The trip database behind it is the harder part to scale.',
+				'It keeps nothing between requests, so autoscaling can add copies. The trip database behind it is much harder to scale.',
 			capacityPerInstance: 2_000,
 			instances: 3,
 			maxInstances: 30,
@@ -240,11 +244,12 @@ export const rideHailing: SystemInput = {
 			kind: 'service',
 			layer: 'services',
 			summary:
-				'Charges the rider once a trip is complete, records it in a ledger, and retries when the payment provider doesn’t answer.',
-			why: 'Keeps money handling, retries and receipts in one place.',
+				'Charges the rider when a trip ends, and keeps a record of every charge. If the payment provider doesn’t answer, it retries.',
+			why: 'All the money work happens in one place: charges, retries and receipts.',
 			onFailure:
-				'Charges wait in the event stream and go through when it’s back. Trips aren’t affected.',
-			scaling: 'Autoscales, but the payment provider it calls sets the real limit.',
+				'Charges wait in the event stream and go through when it’s back. Trips carry on as normal.',
+			scaling:
+				'It autoscales, but the payment provider sets the real limit. It can only take so many charges a second.',
 			capacityPerInstance: 400,
 			instances: 2,
 			maxInstances: 20,
@@ -256,12 +261,12 @@ export const rideHailing: SystemInput = {
 			kind: 'stream',
 			layer: 'async',
 			summary:
-				'Every position update and trip change, kept in order, for other systems to read at their own pace (like Kafka).',
-			why: 'Surge pricing, payments, analytics and fraud checks all need the same events without slowing the trip down.',
+				'A long list of everything that happens, in order: every driver location and every trip change. Other parts read it when they’re ready, so nobody waits for them.',
+			why: 'Surge pricing, payments, reports and fraud checks all need to know what happened. They read it here, so they never slow a trip down.',
 			onFailure:
-				'Background work stops: surge prices freeze and charges wait. Trips themselves carry on.',
+				'Background work stops. Surge prices stay as they are, and charges wait. Trips themselves carry on.',
 			scaling:
-				'Split into partitions spread over brokers; adding brokers is planned, not automatic.',
+				'The list is split into pieces kept on several servers. Adding servers is planned ahead, not done automatically.',
 			capacityPerInstance: 60_000,
 			instances: 3,
 			latencyMs: 3,
@@ -272,10 +277,11 @@ export const rideHailing: SystemInput = {
 			kind: 'worker',
 			layer: 'async',
 			summary:
-				'Counts ride requests and available drivers in every hexagon, and keeps each area’s surge multiplier up to date.',
-			why: 'When demand outruns supply, higher prices bring more drivers out and spread demand.',
-			onFailure: 'Surge prices stop updating and keep their last values.',
-			scaling: 'Splits the city between workers; autoscales.',
+				'Counts ride requests and free drivers in every map cell. From these, it works out how much prices should go up in each area, and keeps that up to date.',
+			why: 'When more riders want a car than there are drivers, higher prices bring more drivers out. Some riders wait a little, which spreads out the rush.',
+			onFailure: 'Surge prices stop changing and stay where they were.',
+			scaling:
+				'The city is split between several workers, each counting its own areas. Autoscaling adds workers when it gets busy.',
 			capacityPerInstance: 40_000,
 			instances: 2,
 			maxInstances: 10,
@@ -287,11 +293,11 @@ export const rideHailing: SystemInput = {
 			kind: 'database',
 			layer: 'data',
 			summary:
-				'Every online driver’s latest position, in memory, grouped by map cell. Answers “which drivers are near here?” in milliseconds.',
-			why: 'Matching needs live positions instantly; a disk database couldn’t keep up with the writes.',
-			onFailure: 'Dispatch can’t find any drivers: matching stops.',
+				'Every working driver’s latest location, grouped by map cell. It’s kept in the computer’s memory, which is much faster than a disk. It answers “which drivers are near here?” in a few milliseconds.',
+			why: 'Matching needs drivers’ locations instantly. A database on disk couldn’t keep up with so many updates every second.',
+			onFailure: 'Dispatch can’t find any drivers, so matching stops.',
 			scaling:
-				'Split into shards by area. Adding shards means moving data, so it’s planned, not automatic.',
+				'It’s split into shards, and each shard holds some areas of the city. Adding a shard means moving data, so it’s planned ahead, not done automatically.',
 			capacityPerInstance: 15_000,
 			instances: 6,
 			latencyMs: 2,
@@ -301,11 +307,12 @@ export const rideHailing: SystemInput = {
 			name: 'Surge cache',
 			kind: 'cache',
 			layer: 'data',
-			summary: 'The current surge multiplier for each hexagon, ready to read.',
-			why: 'Pricing is asked for far more often than surge changes, so reading it from memory saves recalculating it every time.',
+			summary:
+				'Remembers the current surge for each map cell, such as 1.2×, ready to read in an instant.',
+			why: 'Riders check prices far more often than the surge changes. Reading the surge from memory saves working it out again every time.',
 			onFailure:
-				'Every price check has to count recent demand from the trip database instead.',
-			scaling: 'Small and read-heavy; a few replicas are plenty.',
+				'Every price check must then count recent ride requests in the trip database. That’s slower, and puts heavy load on the database.',
+			scaling: 'It’s small and mostly read, so a few copies are plenty.',
 			capacityPerInstance: 100_000,
 			instances: 1,
 			latencyMs: 1,
@@ -317,10 +324,11 @@ export const rideHailing: SystemInput = {
 			kind: 'database',
 			layer: 'data',
 			summary:
-				'Every trip and what stage it’s at, stored durably and consistently, split across shards by trip.',
-			why: 'Trips are money and records: a trip must never be in two states at once, so this needs a strongly consistent database (Uber moved it to Google Cloud Spanner).',
-			onFailure: 'No new rides and no trips ending, until it’s back.',
-			scaling: 'Sharded; adding shards is planned work, not automatic.',
+				'Every trip and what stage it’s at, saved safely so nothing is lost. The trips are split into shards, so each server holds only some of them.',
+			why: 'Trips involve money, so their records must be right. A trip must never be in two stages at once, so every server must agree on its latest stage. Uber moved this to Google Cloud Spanner, a database built for that.',
+			onFailure: 'No new rides can start and no trips can end, until it’s back.',
+			scaling:
+				'It’s split into shards. Adding a shard is planned ahead, not done automatically.',
 			capacityPerInstance: 1_500,
 			instances: 3,
 			latencyMs: 8,
@@ -330,11 +338,12 @@ export const rideHailing: SystemInput = {
 			name: 'Payment provider',
 			kind: 'external',
 			layer: 'external',
-			summary: 'The card network or bank that actually moves the money.',
-			why: 'Moving money needs a licensed provider.',
+			summary: 'The card company or bank that actually moves the money.',
+			why: 'Only a company with a legal licence can move people’s money.',
 			onFailure:
 				'Charges fail and are retried later. Riders and drivers don’t notice straight away.',
-			scaling: 'Not ours to scale: it has its own limits and outages.',
+			scaling:
+				'It belongs to another company, so we can’t make it bigger. It has its own limits, and sometimes it goes down.',
 			capacityPerInstance: 1_200,
 			instances: 1,
 			latencyMs: 250,
@@ -345,15 +354,15 @@ export const rideHailing: SystemInput = {
 			id: 'share-location',
 			name: 'Drivers share their location',
 			description:
-				'Every online driver’s phone sends its position every few seconds (every 4, in a 2015 Uber talk). The busiest flow by far.',
+				'Every working driver’s phone sends its location every few seconds. In a 2015 talk, Uber said every 4 seconds. This is by far the busiest journey.',
 			rps: 25_000,
 			person: 'Arjun',
-			story: 'Arjun drives for the app. It’s 9:00 pm and he’s waiting for a ride on 80 Feet Road, Koramangala, with the app open.',
+			story: 'Arjun drives for the app. It’s 9:00 pm. He’s on 80 Feet Road, Koramangala, with the app open, waiting for someone to book.',
 			hops: [
 				{
 					from: 'driver-app',
 					to: 'load-balancer',
-					label: 'Position update',
+					label: 'Send the driver’s location',
 					example: {
 						says: 'Every 4 seconds, Arjun’s phone sends where he is, over the connection it keeps open.',
 						data: {
@@ -368,7 +377,7 @@ export const rideHailing: SystemInput = {
 					to: 'realtime-gateway',
 					label: 'Pick the least busy copy',
 					example: {
-						says: 'When Arjun’s phone first connected, the load balancer gave it the least busy copy of the real-time gateway. His updates keep going to that copy.',
+						says: 'When Arjun’s phone first connected, the load balancer chose the least busy copy of the real-time gateway. All his updates keep going to that same copy.',
 						data: {
 							to: 'Real-time gateway, copy 3 of 4',
 						},
@@ -389,9 +398,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'location-service',
 					to: 'geo-index',
-					label: 'File under the driver’s map cell',
+					label: 'Save it in the right map cell',
 					example: {
-						says: 'Arjun’s new position replaces his old one, filed under the hexagon he’s in.',
+						says: 'Arjun’s new location replaces his old one. It’s saved under the map cell he’s in.',
 						data: {
 							driver: 'Arjun',
 							cell: 'Koramangala #4127',
@@ -402,9 +411,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'location-service',
 					to: 'event-stream',
-					label: 'Publish the update',
+					label: 'Post to the event stream',
 					example: {
-						says: 'A note that Arjun moved is added to the event stream, for anything that needs it later.',
+						says: 'A note saying “Arjun moved” goes on the event stream, for any part that needs it later.',
 						data: {
 							event: 'driver moved',
 							driver: 'Arjun',
@@ -416,7 +425,7 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'event-stream',
 					to: 'surge-worker',
-					label: 'Count drivers per area',
+					label: 'Count free drivers in each area',
 					example: {
 						says: 'The surge calculator reads the note and counts Arjun among the free drivers in his area.',
 						data: {
@@ -432,7 +441,7 @@ export const rideHailing: SystemInput = {
 			id: 'check-price',
 			name: 'See the price',
 			description:
-				'A rider enters a destination and sees the fare. Riders check prices far more often than they book.',
+				'A rider types where they want to go and sees the price. Riders check prices far more often than they book.',
 			rps: 1_500,
 			person: 'Rohit',
 			story: 'It’s 9:01 pm. Rohit is in Koramangala 5th Block and needs to get to Indiranagar. He types the address and waits for the price.',
@@ -440,7 +449,7 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'rider-app',
 					to: 'load-balancer',
-					label: 'Get a fare estimate',
+					label: 'Ask for the price',
 					example: {
 						says: 'Rohit’s app asks how much the ride will cost.',
 						data: {
@@ -455,7 +464,7 @@ export const rideHailing: SystemInput = {
 					to: 'api-gateway',
 					label: 'Pick the least busy copy',
 					example: {
-						says: 'The load balancer sends Rohit’s question to whichever copy of the API gateway is least busy right now.',
+						says: 'The load balancer sends Rohit’s question to the least busy copy of the API gateway.',
 						data: {
 							to: 'API gateway, copy 2 of 3',
 						},
@@ -464,9 +473,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'api-gateway',
 					to: 'pricing-service',
-					label: 'Work out the fare',
+					label: 'Work out the price',
 					example: {
-						says: 'The gateway checks it’s really Rohit, then passes the question to pricing.',
+						says: 'The gateway checks it’s really Rohit, then passes the question to the pricing service.',
 						data: {
 							rider: 'Rohit (signed in)',
 							from: 'Koramangala 5th Block',
@@ -478,9 +487,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'pricing-service',
 					to: 'surge-cache',
-					label: 'Surge for this hexagon',
+					label: 'Check how busy the area is',
 					example: {
-						says: 'Pricing asks how busy Rohit’s area is right now.',
+						says: 'The pricing service asks how busy Rohit’s area is right now.',
 						data: {
 							cell: 'Koramangala #4127',
 							answer: '1.2× (busy)',
@@ -492,7 +501,7 @@ export const rideHailing: SystemInput = {
 					to: 'trip-db',
 					label: 'Count recent requests nearby',
 					example: {
-						says: 'Only when the cache doesn’t know: count the ride requests in this area in the last 5 minutes.',
+						says: 'The cache doesn’t know, so the database counts the ride requests in this area in the last 5 minutes.',
 						data: {
 							area: 'Koramangala',
 							since: '8:56 pm',
@@ -505,9 +514,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'pricing-service',
 					to: 'eta-service',
-					label: 'Trip length',
+					label: 'Check how long the trip takes',
 					example: {
-						says: 'How long will this trip take on tonight’s roads? The fare depends on it.',
+						says: 'How long will this trip take on tonight’s roads? The price depends on it.',
 						data: {
 							from: 'Koramangala 5th Block',
 							to: 'Indiranagar',
@@ -522,7 +531,7 @@ export const rideHailing: SystemInput = {
 			id: 'request-ride',
 			name: 'Request a ride',
 			description:
-				'A rider asks for a ride: dispatch finds nearby drivers, ranks them by arrival time, and offers the ride.',
+				'A rider asks for a ride. Dispatch finds nearby drivers, puts them in order by how soon they can arrive, and offers the ride.',
 			rps: 250,
 			person: 'Rohit',
 			story: 'It’s 9:02 pm. Rohit is happy with the ₹212 fare and taps Book.',
@@ -546,7 +555,7 @@ export const rideHailing: SystemInput = {
 					to: 'api-gateway',
 					label: 'Pick the least busy copy',
 					example: {
-						says: 'The load balancer sends the booking to whichever copy of the API gateway is least busy right now: this time, a different one.',
+						says: 'The load balancer sends the booking to the least busy copy of the API gateway. This time, it’s a different copy.',
 						data: {
 							to: 'API gateway, copy 1 of 3',
 						},
@@ -567,9 +576,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'dispatch-service',
 					to: 'geo-index',
-					label: 'Drivers in nearby cells',
+					label: 'Look in nearby map cells',
 					example: {
-						says: 'Which drivers are free in Rohit’s hexagon and the six around it?',
+						says: 'Which drivers are free in Rohit’s map cell and the six cells around it?',
 						data: {
 							cells: 'Koramangala #4127 and 6 around it',
 							answer: '9 free drivers',
@@ -579,7 +588,7 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'dispatch-service',
 					to: 'eta-service',
-					label: 'Arrival time for the closest drivers',
+					label: 'Ask when each driver could arrive',
 					example: {
 						says: 'For the 5 closest drivers: how long would each take to reach Rohit, by road?',
 						data: {
@@ -599,7 +608,7 @@ export const rideHailing: SystemInput = {
 						data: {
 							to: 'Arjun',
 							ride: 'Rohit: Koramangala → Indiranagar',
-							answer: 'accepted after 4 s',
+							answer: 'accepted after 4 seconds',
 						},
 					},
 					calls: 1.4,
@@ -609,7 +618,7 @@ export const rideHailing: SystemInput = {
 					to: 'trip-service',
 					label: 'Create the trip',
 					example: {
-						says: 'Arjun said yes, so Dispatch asks for the trip to be created.',
+						says: 'Arjun said yes, so Dispatch asks the trip service to create the trip.',
 						data: {
 							rider: 'Rohit',
 							driver: 'Arjun',
@@ -636,7 +645,7 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'trip-service',
 					to: 'event-stream',
-					label: 'Trip requested',
+					label: 'Post to the event stream',
 					example: {
 						says: 'A note goes on the event stream: a trip just started in Koramangala.',
 						data: {
@@ -650,9 +659,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'event-stream',
 					to: 'surge-worker',
-					label: 'Count demand per area',
+					label: 'Count requests in each area',
 					example: {
-						says: 'The surge calculator adds it to Koramangala’s demand, which sets the price for the next person.',
+						says: 'The surge calculator adds it to the count of ride requests in Koramangala. That count helps set the price for the next rider.',
 						data: {
 							area: 'Koramangala',
 							'requests in 5 min': '143',
@@ -666,7 +675,7 @@ export const rideHailing: SystemInput = {
 			id: 'track-driver',
 			name: 'Watch the driver arrive',
 			description:
-				'While a rider waits, the driver’s position and arrival time are pushed to their map every few seconds.',
+				'While a rider waits, the driver’s location and arrival time are sent to their map every few seconds.',
 			rps: 6_000,
 			person: 'Rohit',
 			story: 'Rohit has a driver. For the next 3 minutes he watches Arjun’s car move towards him on the map.',
@@ -674,7 +683,7 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'rider-app',
 					to: 'load-balancer',
-					label: 'Keep the map live',
+					label: 'Keep the map up to date',
 					example: {
 						says: 'Rohit’s app keeps a connection open, so updates arrive without it having to ask.',
 						data: {
@@ -697,9 +706,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'realtime-gateway',
 					to: 'trip-service',
-					label: 'Who’s my driver?',
+					label: 'Check who the driver is',
 					example: {
-						says: 'Every so often, the gateway checks which driver is on Rohit’s trip.',
+						says: 'Now and then, the gateway checks which driver is on Rohit’s trip.',
 						data: {
 							trip: 'T-48213',
 							answer: 'Arjun',
@@ -710,7 +719,7 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'realtime-gateway',
 					to: 'geo-index',
-					label: 'Driver’s latest position',
+					label: 'Get the driver’s location',
 					example: {
 						says: 'Where is Arjun right now?',
 						data: {
@@ -722,7 +731,7 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'realtime-gateway',
 					to: 'eta-service',
-					label: 'Time to pickup',
+					label: 'Check how soon the driver arrives',
 					example: {
 						says: 'How long until Arjun reaches Rohit?',
 						data: {
@@ -740,17 +749,17 @@ export const rideHailing: SystemInput = {
 			id: 'end-trip',
 			name: 'End the trip and pay',
 			description:
-				'The driver ends the trip; the fare is saved straight away and the rider is charged in the background.',
+				'The driver ends the trip. The fare is saved straight away, and the rider is charged in the background.',
 			person: 'Arjun',
-			story: 'At 9:24 pm Arjun drops Rohit on 100 Feet Road, Indiranagar, and taps End trip.',
+			story: 'At 9:24 pm, Arjun drops Rohit off on 100 Feet Road, Indiranagar, and taps End trip.',
 			rps: 250,
 			hops: [
 				{
 					from: 'driver-app',
 					to: 'load-balancer',
-					label: 'End trip',
+					label: 'End the trip',
 					example: {
-						says: 'Arjun’s phone sends that the trip is over.',
+						says: 'Arjun’s phone says the trip is over.',
 						data: {
 							driver: 'Arjun',
 							trip: 'T-48213',
@@ -763,7 +772,7 @@ export const rideHailing: SystemInput = {
 					to: 'api-gateway',
 					label: 'Pick the least busy copy',
 					example: {
-						says: 'The load balancer passes it to whichever copy of the API gateway is least busy.',
+						says: 'The load balancer passes it to the least busy copy of the API gateway.',
 						data: {
 							to: 'API gateway, copy 3 of 3',
 						},
@@ -785,10 +794,10 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'trip-service',
 					to: 'trip-db',
-					label: 'Save fare and status',
+					label: 'Save the fare and status',
 					retries: 2,
 					example: {
-						says: 'The final fare and the new status are saved straight away.',
+						says: 'The final fare is saved straight away, and the trip is marked as done.',
 						data: {
 							trip: 'T-48213',
 							status: 'completed',
@@ -799,9 +808,9 @@ export const rideHailing: SystemInput = {
 				{
 					from: 'trip-service',
 					to: 'event-stream',
-					label: 'Trip completed',
+					label: 'Post to the event stream',
 					example: {
-						says: 'A note goes on the event stream: trip T-48213 is done, and owes ₹218.',
+						says: 'A note goes on the event stream: trip T-48213 is done, and the rider owes ₹218.',
 						data: {
 							event: 'trip completed',
 							trip: 'T-48213',
@@ -852,14 +861,15 @@ export const rideHailing: SystemInput = {
 		{
 			id: 'friday-night',
 			name: 'Friday night',
-			description: 'Busier all evening; traffic builds over hours, so autoscaling keeps up.',
+			description:
+				'Busier all evening. Traffic grows slowly over hours, so autoscaling has time to keep up.',
 			traffic: 2.5,
 		},
 		{
 			id: 'sudden-rain',
 			name: 'Sudden rain',
 			description:
-				'It starts pouring at rush hour: within minutes, five times as many people want a ride and check prices.',
+				'It starts raining hard at rush hour. Within minutes, five times as many people want a ride, and four times as many check prices.',
 			traffic: 1.5,
 			journeyTraffic: { 'request-ride': 5, 'check-price': 4 },
 			sudden: true,
@@ -867,50 +877,10 @@ export const rideHailing: SystemInput = {
 		{
 			id: 'new-year',
 			name: 'New Year’s Eve',
-			description: 'Midnight strikes and the whole city wants to go home at once.',
+			description: 'It’s midnight, and the whole city wants to go home at the same time.',
 			traffic: 2.5,
 			journeyTraffic: { 'request-ride': 6, 'check-price': 5, 'track-driver': 2 },
 			sudden: true,
-		},
-	],
-	challenges: [
-		{
-			id: 'routing-down',
-			title: 'Routing goes down',
-			story: 'The ETA service has crashed. Rides still get matched, because dispatch can fall back to straight-line distance, but every ride request now hangs for seconds waiting for answers that never come.',
-			preset: 'normal',
-			down: ['eta-service'],
-			goal: { journey: 'request-ride', minSuccess: 0.99, maxLatencyMs: 500 },
-			hint: 'The ETA service can’t be fixed in time. Can callers stop waiting for it?',
-			lesson: 'Circuit breakers notice that the ETA service keeps failing and stop calling it, answering at once instead of waiting for a timeout. Because ETAs are optional, matching carries on with straight-line distance. Failing fast plus a fallback is graceful degradation.',
-		},
-		{
-			id: 'sudden-rain',
-			title: 'Caught in the rain',
-			story: 'It starts pouring at rush hour. Within minutes five times as many people want a ride, and autoscaling won’t add servers for several minutes: by then riders have given up.',
-			preset: 'sudden-rain',
-			goal: { journey: 'request-ride', minSuccess: 0.99, maxLatencyMs: 1000 },
-			hint: 'Find what’s overloaded on the ride request path and add instances by hand, the way teams scale up ahead of a forecast.',
-			lesson: 'Autoscaling follows traffic, so it’s always a few minutes behind. For spikes you can see coming (a storm, a concert ending, New Year’s Eve) teams scale up ahead of time. Dispatch is the bottleneck here. The ETA service is overloaded too, but it’s optional: breakers or more instances keep it from slowing requests down.',
-		},
-		{
-			id: 'surge-cache-friday',
-			title: 'The surge cache fails on a Friday night',
-			story: 'The surge cache crashes at the busiest time of the week. Every price check now counts recent requests in the trip database instead, and the database is drowning. Drivers can’t even end their trips.',
-			preset: 'friday-night',
-			down: ['surge-cache'],
-			goal: { journey: 'check-price', minSuccess: 0.99, maxLatencyMs: 1000 },
-			hint: 'The cache can’t come back in time. What was it protecting, and can that take the extra load?',
-			lesson: 'A cache hides how much load the database behind it would get. When it fails, every request falls through at once: a cascading failure that hurts unrelated features, like ending trips. Databases need headroom for this, or a fallback that doesn’t touch them, such as using the last known surge prices.',
-		},
-		{
-			id: 'new-year',
-			title: 'Midnight on New Year’s Eve',
-			story: 'At midnight the whole city wants to go home at once. Ride requests jump six-fold, everyone checks prices, and every part of the system is under strain.',
-			preset: 'new-year',
-			goal: { journey: 'request-ride', minSuccess: 0.99, maxLatencyMs: 1000 },
-			hint: 'Work along the ride request path from the front door to the database. More than one part needs scaling ahead of time.',
-			lesson: 'Big, predictable events are planned weeks ahead: teams estimate the peak, scale every part on the critical path before it arrives, and decide what can degrade (like ETAs) to protect what can’t (getting a ride).',
 		},
 	],
 };

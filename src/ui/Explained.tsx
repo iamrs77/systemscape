@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { termById, type Piece } from '@/learn/glossary';
 import { useApp } from '@/store';
+import { floatingRoot } from './fullScreen';
 
 /** Which word's meaning is open, and the word it's beside. One at a time. */
 type Open = { key: string; id: string; anchor: HTMLElement };
@@ -130,7 +131,7 @@ export function WordMeaning() {
 				All the words →
 			</button>
 		</div>,
-		document.body,
+		floatingRoot(),
 	);
 }
 

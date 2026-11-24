@@ -62,7 +62,7 @@ export function turned(contour: Vec2[]): Vec2[] {
 }
 
 /** A rectangle with rounded corners on the ground, centred on zero; a circle when r is half its size. */
-export function roundedRect(width: number, depth: number, r: number, steps = 5): Vec2[] {
+export function roundedRect(width: number, depth: number, r: number, steps = 8): Vec2[] {
 	const radius = Math.min(r, width / 2, depth / 2);
 	const [w, d] = [width / 2 - radius, depth / 2 - radius];
 	const corners: [number, number][] = [
@@ -198,7 +198,7 @@ export const troublePalette = {
 	down: { top: '#e5e8ee', left: '#d7dbe3', right: '#c8cdd8' },
 } satisfies Record<string, Palette>;
 
-/** One block of a part: a copy of a service, a database shard, or the part itself. */
+/** One block of a part: the part itself, or one disc of a database's stack. */
 export type Piece = {
 	type: 'block';
 	contour: Vec2[];
@@ -208,12 +208,15 @@ export type Piece = {
 	height: number;
 	icon: IconName | null;
 	iconSize: number;
+	/** The radius of the white disc the icon sits on; 0 for none. */
+	plate: number;
 };
 
 /**
- * What a part is drawn as: one clean block with an icon on top. A database
- * is a cylinder, the usual symbol for one; an app is a phone lying flat. How
- * many copies a part runs shows as a badge beside it, not as more blocks.
+ * What a part is drawn as: one soft, rounded block with its icon on a white
+ * disc on top, like a toy. A database is a stack of discs, the usual symbol
+ * for one; an app is a phone lying flat. How many copies a part runs shows
+ * as a badge beside it, not as more blocks.
  */
 export function piecesFor(component: Component): Piece[] {
 	const block = (
@@ -221,45 +224,64 @@ export function piecesFor(component: Component): Piece[] {
 		depth: number,
 		height: number,
 		round: number,
-		icon: IconName,
-		iconSize = 1.05,
+		icon: IconName | null,
+		{ iconSize = 0.95, base = 0, plate = 0.6 } = {},
 	): Piece => ({
 		type: 'block',
 		contour: turned(roundedRect(width, depth, round)),
 		offset: [0, 0],
-		base: 0,
+		base,
 		height,
 		icon,
 		iconSize,
+		plate: icon ? plate : 0,
 	});
 
 	switch (component.kind) {
 		case 'client':
-			return [block(1.5, 2.2, 0.38, 0.32, 'phone')];
+			return [block(1.5, 2.2, 0.4, 0.5, 'phone', { iconSize: 0.85, plate: 0.5 })];
 		case 'service':
-			return [block(2, 2, 0.95, 0.28, 'server')];
+			return [block(2, 2, 0.95, 0.62, 'server')];
 		case 'balancer':
-			return [block(2.4, 1.7, 0.7, 0.3, 'balancer')];
+			return [block(2.4, 1.7, 0.7, 0.6, 'balancer')];
 		case 'gateway':
-			return [block(2.2, 1.7, 0.95, 0.28, 'gateway')];
+			return [block(2.2, 1.7, 0.95, 0.6, 'gateway')];
 		case 'worker':
-			return [block(2, 1.9, 0.9, 0.28, 'worker')];
-		case 'database':
-			// a radius of half its width makes it round: a cylinder
-			return [block(1.9, 1.9, 1.05, 0.95, 'database', 1)];
+			return [block(2, 1.9, 0.9, 0.62, 'worker')];
+		case 'database': {
+			// three discs, one on another: the lines between them are the classic database symbol
+			const disc = 0.36;
+			return [0, 1, 2].map((i) =>
+				block(1.9, 1.9, disc, 0.95, i === 2 ? 'database' : null, {
+					base: i * disc,
+					iconSize: 0.9,
+					plate: 0.58,
+				}),
+			);
+		}
 		case 'cache':
-			return [block(1.9, 1.9, 0.85, 0.3, 'cache')];
+			return [block(1.9, 1.9, 0.85, 0.62, 'cache')];
 		case 'cdn':
 			return [block(1.9, 1.9, 0.9, 0.95, 'cdn')];
 		case 'queue':
-			return [block(2.2, 1.5, 0.8, 0.25, 'queue', 0.95)];
+			return [block(2.2, 1.5, 0.8, 0.5, 'queue', { plate: 0.55 })];
 		case 'stream':
-			return [block(2.4, 1.5, 0.8, 0.25, 'stream', 0.95)];
+			return [block(2.4, 1.5, 0.8, 0.5, 'stream', { plate: 0.55 })];
 		case 'storage':
-			return [block(2, 1.8, 1.05, 0.25, 'storage', 1)];
+			return [block(2, 1.8, 1.05, 0.5, 'storage')];
 		case 'external':
-			return [block(2.1, 1.9, 1.2, 0.25, 'external', 1.1)];
+			return [block(2.1, 1.9, 1.2, 0.58, 'external')];
 	}
+}
+
+/**
+ * The soft shadow a block casts on the ground, a little larger than it and
+ * to the right, away from the light.
+ */
+export function shadowOf(contour: Vec2[], at: Vec2, grow: number): string {
+	return toPoints(
+		contour.map(([x, z]) => project(at[0] + 0.22 + x * grow, at[1] - 0.14 + z * grow)),
+	);
 }
 
 /** The flat outline of a lot, for the ring round a selected part. */

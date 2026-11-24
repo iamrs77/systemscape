@@ -1,31 +1,26 @@
 import { useState, type ReactNode } from 'react';
 import { lessonsOf } from '@/learn/lessons';
-import { exploreHref, lessonHref, practiceHref, type Mode } from '@/route';
+import { exploreHref, lessonHref, type Mode } from '@/route';
 import { useApp, useSystem } from '@/store';
 import { cx } from './cx';
-import { BoltIcon, CheckIcon, ChevronIcon, CompassIcon } from './icons';
+import { CheckIcon, ChevronIcon, CompassIcon } from './icons';
 
-/** The lessons, the challenges and the sandbox, with how far you've got. */
+/** The lessons and the sandbox, with how far you've got. */
 export function CourseNav({ mode }: { mode: Mode }) {
 	const system = useSystem();
 	const lessons = lessonsOf(system);
 	const learned = useApp((s) => s.learned);
-	const solved = useApp((s) => s.solved);
 	const [open, setOpen] = useState(false);
 
 	const isLearned = (id: string) => learned.includes(`${system.id}/${id}`);
-	const isSolved = (id: string) => solved.includes(`${system.id}/${id}`);
 	const lessonsDone = lessons.filter((l) => isLearned(l.id)).length;
-	const challengesDone = system.challenges.filter((c) => isSolved(c.id)).length;
-	const total = lessons.length + system.challenges.length;
-	const done = lessonsDone + challengesDone;
+	const total = lessons.length;
+	const done = lessonsDone;
 
 	const where =
 		mode.kind === 'learn'
 			? `Lesson ${lessons.findIndex((l) => l.id === mode.lessonId) + 1}: ${lessons.find((l) => l.id === mode.lessonId)?.title}`
-			: mode.kind === 'practice'
-				? `Challenge: ${system.challenges.find((c) => c.id === mode.challengeId)?.title}`
-				: 'Explore freely';
+			: 'Explore freely';
 
 	return (
 		<nav aria-label="Course" className="surface flex min-h-0 flex-col overflow-hidden">
@@ -69,28 +64,7 @@ export function CourseNav({ mode }: { mode: Mode }) {
 						</Item>
 					))}
 				</Group>
-				{system.challenges.length > 0 && (
-					<Group
-						title="Challenges"
-						count={`${challengesDone}/${system.challenges.length}`}
-					>
-						{system.challenges.map((challenge) => (
-							<Item
-								key={challenge.id}
-								href={practiceHref(system.id, challenge.id)}
-								current={
-									mode.kind === 'practice' && mode.challengeId === challenge.id
-								}
-								done={isSolved(challenge.id)}
-								mark={<BoltIcon width={12} height={12} />}
-								onPick={() => setOpen(false)}
-							>
-								{challenge.title}
-							</Item>
-						))}
-					</Group>
-				)}
-				<Group title="Sandbox">
+				<Group title="Practice">
 					<Item
 						href={exploreHref(system.id)}
 						current={mode.kind === 'explore'}
@@ -122,7 +96,7 @@ export function CourseNav({ mode }: { mode: Mode }) {
 					/>
 				</div>
 				<p className="mt-2 text-[11px] text-slate-500">
-					A lesson is ticked when you reach its last step, a challenge when you solve it.
+					A lesson gets a tick when you reach its last step.
 				</p>
 				{done > 0 && <ResetProgress />}
 			</div>
@@ -147,7 +121,7 @@ function ResetProgress() {
 	}
 	return (
 		<p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-xs">
-			<span className="text-slate-700">Clear every tick?</span>
+			<span className="text-slate-700">Remove all ticks?</span>
 			<button
 				type="button"
 				onClick={() => {

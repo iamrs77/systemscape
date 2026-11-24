@@ -21,19 +21,15 @@ const TITLE = 'Systemscape: how big apps are built';
 const how = [
 	{
 		title: 'Learn',
-		text: 'Start with the big picture: what each part is for, a row at a time. Then follow what people do in the app, one call at a time, and see where the time goes.',
+		text: 'First, see what each part does, one row at a time. Then follow what people do in the app, step by step, and see where the time goes.',
 	},
 	{
-		title: 'Push it',
-		text: 'Each lesson ends on a busy night: see what slows down, what fails, and how the failure spreads from part to part.',
+		title: 'See it break',
+		text: 'Each lesson ends on a busy night. See what slows down, what fails, and how one failure spreads to other parts.',
 	},
 	{
-		title: 'Fix it',
-		text: 'Challenges break something the way it happens in real life. Add copies, switch on circuit breakers, and the goal is checked as you go.',
-	},
-	{
-		title: 'Explore',
-		text: 'In the sandbox, change anything: traffic, copies, retries, which parts are up. Every number is worked out as you change it.',
+		title: 'Fix it yourself',
+		text: 'In Explore freely, turn the traffic up and switch safety features on and off. When something breaks, the app tells you why and offers a fix to try.',
 	},
 ];
 
@@ -69,9 +65,9 @@ export function Home() {
 						Learn how big apps are built.
 					</h1>
 					<p className="mt-5 text-base text-pretty text-slate-600 sm:text-lg">
-						Pick an app you use every day and take its backend apart, one step at a
-						time: what each part does, how a request travels through them, and what
-						breaks when everyone shows up at once.
+						Pick an app you use every day and look inside its backend, one step at a
+						time. See what each part does, how a request moves between them, and what
+						breaks when everyone uses the app at once.
 					</p>
 				</section>
 
@@ -88,7 +84,7 @@ export function Home() {
 
 				<section aria-labelledby="coming-title" className="mt-12">
 					<SectionTitle id="coming-title">Coming soon</SectionTitle>
-					<ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+					<ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 						{comingSoon.map((s) => (
 							<li
 								key={s.name}
@@ -106,7 +102,7 @@ export function Home() {
 
 				<section aria-labelledby="how-title" className="mt-14">
 					<SectionTitle id="how-title">How it works</SectionTitle>
-					<ol className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					<ol className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 						{how.map((step, i) => (
 							<li key={step.title} className="surface p-4">
 								<span
@@ -126,8 +122,8 @@ export function Home() {
 			<footer className="border-t border-slate-200">
 				<div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-5 text-xs text-slate-500 sm:px-6">
 					<p>
-						Simplified designs, based on public talks and engineering posts: not any
-						company’s actual system.
+						These are simplified designs, based on public talks and engineers’ blog
+						posts. They are not any company’s real system.
 					</p>
 					<a
 						href={REPO_URL}
@@ -149,8 +145,7 @@ function SystemCard({ system }: { system: System }) {
 	const learned = useApp(
 		(s) => s.learned.filter((key) => key.startsWith(`${system.id}/`)).length,
 	);
-	const solved = useApp((s) => s.solved.filter((key) => key.startsWith(`${system.id}/`)).length);
-	const started = learned + solved > 0;
+	const started = learned > 0;
 
 	const preview = useMemo(() => {
 		const journey = startingJourney(system);
@@ -195,8 +190,8 @@ function SystemCard({ system }: { system: System }) {
 					<Facts
 						facts={[
 							{ label: 'Lessons', value: String(lessons.length) },
-							{ label: 'Challenges', value: String(system.challenges.length) },
 							{ label: 'Parts', value: String(system.components.length) },
+							{ label: 'Journeys', value: String(system.journeys.length) },
 						]}
 					/>
 				</div>
@@ -213,8 +208,7 @@ function SystemCard({ system }: { system: System }) {
 				</ol>
 				{started && (
 					<p className="mt-4 text-xs text-cyan-700">
-						{learned} of {lessons.length} lessons, {solved} of{' '}
-						{system.challenges.length} challenges done
+						{learned} of {lessons.length} lessons done
 					</p>
 				)}
 				<span
@@ -226,7 +220,7 @@ function SystemCard({ system }: { system: System }) {
 					)}
 					aria-hidden="true"
 				>
-					{started ? 'Carry on' : 'Start learning'}
+					{started ? 'Continue' : 'Start learning'}
 					<ArrowIcon
 						width={14}
 						height={14}

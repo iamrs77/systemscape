@@ -116,26 +116,6 @@ export const presetSchema = z.object({
 });
 export type Preset = z.output<typeof presetSchema>;
 
-export const challengeSchema = z.object({
-	id,
-	title: text,
-	/** The situation, as a short story. */
-	story: text,
-	preset: id,
-	/** Components that are down when the challenge starts. */
-	down: z.array(id).default([]),
-	goal: z.object({
-		journey: id,
-		/** e.g. 0.99 for 99% of requests succeeding. */
-		minSuccess: z.number().min(0).max(1),
-		maxLatencyMs: z.number().positive().optional(),
-	}),
-	hint: text,
-	/** Shown once it's solved: what the fix teaches. */
-	lesson: text,
-});
-export type Challenge = z.output<typeof challengeSchema>;
-
 export const systemSchema = z.object({
 	id,
 	name: text,
@@ -150,7 +130,6 @@ export const systemSchema = z.object({
 	components: z.array(componentSchema).min(2),
 	journeys: z.array(journeySchema).min(1),
 	presets: z.array(presetSchema).min(1),
-	challenges: z.array(challengeSchema).default([]),
 });
 export type System = z.output<typeof systemSchema>;
 export type SystemInput = z.input<typeof systemSchema>;

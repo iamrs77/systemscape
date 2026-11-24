@@ -15,8 +15,8 @@ export function GlossaryDialog() {
 	return (
 		<Modal title="Words, explained" onClose={close}>
 			<p className="text-sm text-slate-600">
-				The words system design uses, in plain English. In the lessons, tap any underlined
-				word to see its meaning where you are.
+				The words used in system design, in plain English. In the lessons, tap any
+				underlined word to see what it means.
 			</p>
 			<dl className="mt-4 divide-y divide-slate-100">
 				{words.map((word) => (

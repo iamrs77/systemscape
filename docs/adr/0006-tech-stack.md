@@ -1,6 +1,6 @@
 # 6. The tech stack
 
-- **Status:** Accepted, except the 3D view: three.js, React Three Fiber and drei were replaced by an SVG diagram ([ADR 0008](0008-diagram-and-lessons.md))
+- **Status:** Accepted, except the 3D view: three.js, React Three Fiber and drei were replaced by an SVG diagram ([ADR 0008](0008-diagram-and-lessons.md)); and the tests, removed in [ADR 0009](0009-explore-instead-of-challenges.md)
 - **Date:** 2026-11-19
 
 ## Context

@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { Preset, System } from '@/model/schema';
 import { defaultInput, simulate, type SimInput, type SimResult } from '@/sim/engine';
-import { challengeInput, meetsGoal } from '@/systems/challenges';
 import { getSystem, systems } from '@/systems';
 
 export type Option = 'autoscale' | 'retries' | 'circuitBreakers' | 'sudden';
@@ -22,9 +21,6 @@ type State = {
 	hovered: string | null;
 	/** The journey whose requests are shown flowing; null for all of them. */
 	journeyId: string | null;
-	challengeId: string | null;
-	/** Solved challenges, as "system/challenge". */
-	solved: string[];
 	/** Lessons finished, as "system/lesson". */
 	learned: string[];
 	paused: boolean;
@@ -41,13 +37,13 @@ type Actions = {
 	select(componentId: string | null): void;
 	hover(componentId: string | null): void;
 	selectJourney(journeyId: string | null): void;
-	startChallenge(id: string): void;
-	leaveChallenge(): void;
-	/** Back to how the scenario (or challenge) started. */
+	/** Starts exploring from an evening, following a journey: where a lesson's "try it yourself" leads. */
+	setUp(presetId: string, journeyId: string | null): void;
+	/** Back to how the evening started. */
 	reset(): void;
 	/** Marks a lesson of the current system as finished. */
 	markLearned(lessonId: string): void;
-	/** Forgets the finished lessons and solved challenges of the current system. */
+	/** Forgets the finished lessons of the current system. */
 	resetProgress(): void;
 	setPaused(paused: boolean): void;
 	openDialog(dialog: Dialog): void;
@@ -55,7 +51,6 @@ type Actions = {
 
 export type AppState = State & Actions;
 
-const SOLVED_KEY = 'systemscape:solved';
 const LEARNED_KEY = 'systemscape:learned';
 
 /** Saved progress: a list of "system/thing" keys. */
@@ -115,8 +110,6 @@ export function initialState(): State {
 		...fresh(systems[0]!),
 		selected: null,
 		hovered: null,
-		challengeId: null,
-		solved: load(SOLVED_KEY),
 		learned: load(LEARNED_KEY),
 		paused: prefersReducedMotion(),
 		dialog: null,
@@ -125,52 +118,36 @@ export function initialState(): State {
 
 export const useApp = create<AppState>()((set, get) => {
 	const system = () => getSystem(get().systemId);
-	const challenge = () => system().challenges.find((c) => c.id === get().challengeId);
 
-	/** Runs the simulation with new conditions, and records a solved challenge. */
-	const run = (input: SimInput, extra: Partial<State> = {}) => {
-		const result = simulate(system(), input);
-		const active = challenge();
-		let solved = get().solved;
-		const key = active && `${system().id}/${active.id}`;
-		if (active && key && !solved.includes(key) && meetsGoal(result, active)) {
-			solved = [...solved, key];
-			save(SOLVED_KEY, solved);
-		}
-		set({ ...extra, input, result, solved });
-	};
+	/** Runs the simulation with new conditions. */
+	const run = (input: SimInput) => set({ input, result: simulate(system(), input) });
 
 	return {
 		...initialState(),
 
 		selectSystem(id) {
-			set({ ...fresh(getSystem(id)), selected: null, challengeId: null });
+			set({ ...fresh(getSystem(id)), selected: null });
 		},
 
 		applyPreset(id) {
 			const preset = system().presets.find((p) => p.id === id);
-			if (!preset || get().challengeId) return;
+			if (!preset) return;
 			set({ presetId: id });
 			run({ ...get().input, ...presetInput(preset) });
 		},
 
 		setTraffic(traffic) {
-			if (get().challengeId) return;
 			const clamped = Math.min(TRAFFIC_RANGE.max, Math.max(TRAFFIC_RANGE.min, traffic));
 			run({ ...get().input, traffic: clamped });
 		},
 
 		setOption(option, on) {
-			// the challenge decides how suddenly traffic arrives
-			if (option === 'sudden' && get().challengeId) return;
 			run({ ...get().input, [option]: on });
 		},
 
 		setDown(componentId, down) {
 			const component = system().components.find((c) => c.id === componentId);
 			if (!component || component.kind === 'client') return;
-			// a challenge's broken parts can't be fixed in time: that's the point
-			if (!down && challenge()?.down.includes(componentId)) return;
 			const next = new Set(get().input.down);
 			if (down) next.add(componentId);
 			else next.delete(componentId);
@@ -202,28 +179,13 @@ export const useApp = create<AppState>()((set, get) => {
 			set({ journeyId });
 		},
 
-		startChallenge(id) {
-			const found = system().challenges.find((c) => c.id === id);
-			if (!found) return;
-			set({
-				challengeId: id,
-				presetId: found.preset,
-				selected: null,
-				journeyId: found.goal.journey,
-			});
-			run(challengeInput(system(), found));
-		},
-
-		leaveChallenge() {
-			set({ ...fresh(system()), challengeId: null });
+		setUp(presetId, journeyId) {
+			const preset = system().presets.find((p) => p.id === presetId) ?? system().presets[0]!;
+			set({ presetId: preset.id, journeyId, selected: null });
+			run({ ...defaultInput, ...presetInput(preset) });
 		},
 
 		reset() {
-			const active = challenge();
-			if (active) {
-				run(challengeInput(system(), active));
-				return;
-			}
 			const preset =
 				system().presets.find((p) => p.id === get().presetId) ?? system().presets[0]!;
 			run({ ...defaultInput, ...presetInput(preset) });
@@ -232,10 +194,8 @@ export const useApp = create<AppState>()((set, get) => {
 		resetProgress() {
 			const mine = (key: string) => key.startsWith(`${get().systemId}/`);
 			const learned = get().learned.filter((key) => !mine(key));
-			const solved = get().solved.filter((key) => !mine(key));
 			save(LEARNED_KEY, learned);
-			save(SOLVED_KEY, solved);
-			set({ learned, solved });
+			set({ learned });
 		},
 
 		markLearned(lessonId) {
@@ -258,10 +218,3 @@ export const useApp = create<AppState>()((set, get) => {
 
 /** The system being explored. */
 export const useSystem = () => getSystem(useApp((s) => s.systemId));
-
-/** The active challenge, if any. */
-export function useChallenge() {
-	const system = useSystem();
-	const id = useApp((s) => s.challengeId);
-	return system.challenges.find((c) => c.id === id);
-}

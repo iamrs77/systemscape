@@ -112,6 +112,22 @@ export const BoltIcon = (p: P) => (
 		<path d="M13 2 4 14h7l-1 8 9-12h-7z" />
 	</Icon>
 );
+export const ExpandIcon = (p: P) => (
+	<Icon {...p}>
+		<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+	</Icon>
+);
+export const ShrinkIcon = (p: P) => (
+	<Icon {...p}>
+		<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+	</Icon>
+);
+export const PanelIcon = (p: P) => (
+	<Icon {...p}>
+		<rect x="3" y="4" width="18" height="16" rx="2" />
+		<path d="M15 4v16" />
+	</Icon>
+);
 export const BookIcon = (p: P) => (
 	<Icon {...p}>
 		<path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2.5 2 2 0 0 0 2 1.5h14" />

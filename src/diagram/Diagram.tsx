@@ -22,6 +22,7 @@ import {
 	LOT_RING,
 	nearness,
 	piecesFor,
+	shadowOf,
 	project,
 	troublePalette,
 	type Palette,
@@ -109,7 +110,15 @@ type Drawn = {
 	instances: number;
 	status: Status | undefined;
 	utilization: number;
-	solids: { solid: Solid; at: Vec2; icon: keyof typeof iconPaths | null; iconSize: number }[];
+	solids: {
+		solid: Solid;
+		at: Vec2;
+		icon: keyof typeof iconPaths | null;
+		iconSize: number;
+		plate: number;
+		/** Its shadow on the ground, soft edge first; none for a block stacked on another. */
+		shadows: string[];
+	}[];
 	/** The highest point of its block on the page. */
 	peak: number;
 	/** Where the bottom of its nameplate sits: at the front of its block, inside its lot, where no arrow goes. */
@@ -161,6 +170,11 @@ export function Diagram({
 							at,
 							icon: piece.icon,
 							iconSize: piece.iconSize,
+							plate: piece.plate,
+							shadows:
+								piece.base > 0
+									? []
+									: [1.16, 1.06].map((grow) => shadowOf(piece.contour, at, grow)),
 						};
 					});
 					const peaks = solids.map((s) => s.solid.peak);
@@ -415,6 +429,12 @@ export function Diagram({
 				}}
 			>
 				<defs>
+					{/* light catching the top of a block, brightest at the back */}
+					<linearGradient id={`${uid}-shine`} x1="0" y1="0" x2="0" y2="1">
+						<stop offset="0" stopColor="#ffffff" stopOpacity="0.75" />
+						<stop offset="0.55" stopColor="#ffffff" stopOpacity="0.2" />
+						<stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+					</linearGradient>
 					{(
 						[
 							['ink', INK],
@@ -619,27 +639,58 @@ export function Diagram({
 							onPointerLeave={bare ? undefined : () => setHovered(null)}
 							aria-hidden="true"
 						>
-							{part.solids.map(({ solid, icon, iconSize }, i) => (
-								<g key={i}>
-									<SolidShape solid={solid} palette={palette} dashed={down} />
-									{icon && (
-										<g
-											transform={`translate(${solid.topCentre[0].toFixed(3)} ${solid.topCentre[1].toFixed(3)}) ${BLOCK_TOP} scale(${(iconSize / 24).toFixed(4)})`}
-										>
-											<path
-												d={iconPaths[icon]}
-												transform="translate(-12 -12)"
-												fill="none"
-												stroke={down ? '#7b8499' : INK}
-												strokeWidth="1.25"
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												vectorEffect="non-scaling-stroke"
-											/>
-										</g>
-									)}
-								</g>
-							))}
+							{part.solids.map(({ shadows }) =>
+								shadows.map((points, i) => (
+									<polygon
+										key={`shadow-${i}`}
+										points={points}
+										fill={INK}
+										opacity={i === 0 ? 0.035 : 0.06}
+									/>
+								)),
+							)}
+							{part.solids.map(({ solid, icon, iconSize, plate }, i) => {
+								const top = `translate(${solid.topCentre[0].toFixed(3)} ${solid.topCentre[1].toFixed(3)}) ${BLOCK_TOP}`;
+								return (
+									<g key={i}>
+										<SolidShape
+											solid={solid}
+											palette={palette}
+											shine={`url(#${uid}-shine)`}
+											dashed={down}
+										/>
+										{plate > 0 && (
+											<g transform={top}>
+												<circle
+													r={plate}
+													fill="#ffffff"
+													fillOpacity={down ? 0.55 : 0.92}
+													stroke={edgeOf(palette)}
+													strokeOpacity="0.35"
+													strokeWidth="1"
+													vectorEffect="non-scaling-stroke"
+												/>
+											</g>
+										)}
+										{icon && (
+											<g
+												transform={`${top} scale(${(iconSize / 24).toFixed(4)})`}
+											>
+												<path
+													d={iconPaths[icon]}
+													transform="translate(-12 -12)"
+													fill="none"
+													stroke={down ? '#7b8499' : glyphOf(palette)}
+													strokeWidth="1.4"
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													vectorEffect="non-scaling-stroke"
+												/>
+											</g>
+										)}
+									</g>
+								);
+							})}
 							{badges && part.instances > 1 && (
 								<Badge
 									at={part.solids.at(-1)!.solid.topCentre}
@@ -934,13 +985,21 @@ function useAnimatedViewBox(
 	return target;
 }
 
+/** A block's outline: a deeper shade of its own colour, softer than ink. */
+const edgeOf = (palette: Palette) => mix(palette.right, INK, 0.45);
+/** Its icon: deeper still, so it reads on the white disc. */
+const glyphOf = (palette: Palette) => mix(palette.right, INK, 0.6);
+
 function SolidShape({
 	solid,
 	palette,
+	shine,
 	dashed = false,
 }: {
 	solid: Solid;
 	palette: Palette;
+	/** The paint for the light catching its top. */
+	shine: string;
 	dashed?: boolean;
 }) {
 	return (
@@ -958,11 +1017,12 @@ function SolidShape({
 				);
 			})}
 			<polygon points={solid.top} fill={palette.top} />
+			<polygon points={solid.top} fill={shine} />
 			<path
 				d={solid.outline}
 				fill="none"
-				stroke={dashed ? '#7b8499' : INK}
-				strokeWidth="1.35"
+				stroke={dashed ? '#7b8499' : edgeOf(palette)}
+				strokeWidth="1.25"
 				strokeDasharray={dashed ? '4 3' : undefined}
 				strokeLinejoin="round"
 				strokeLinecap="round"

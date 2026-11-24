@@ -4,7 +4,7 @@ import { annotate, namesOf } from '@/learn/glossary';
 import { lessonsOf, stepResult, type LessonStep, type Tone } from '@/learn/lessons';
 import type { SimResult } from '@/sim/engine';
 import { formatMs } from '@/sim/format';
-import { exploreHref, lessonHref, practiceHref, replaceRoute } from '@/route';
+import { exploreHref, lessonHref, replaceRoute } from '@/route';
 import { useApp, useSystem } from '@/store';
 import { kindLabel } from '@/theme';
 import { Callout, DiagramFrame, Facts } from './bits';
@@ -70,23 +70,10 @@ export function LessonView({ lessonId, step: asked }: { lessonId: string; step: 
 	return (
 		<>
 			<main className="flex min-h-0 flex-col gap-3" aria-labelledby="lesson-title">
-				<header className="flex flex-wrap items-end gap-x-4 gap-y-2 px-1">
-					<div className="min-w-0 flex-1">
-						<p className="text-xs text-slate-500">
-							Lesson {index + 1} of {lessons.length}
-						</p>
-						<h1
-							id="lesson-title"
-							className="mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl"
-						>
-							{lesson.title}
-						</h1>
-						<p className="mt-1 text-sm text-slate-600">{lesson.summary}</p>
-					</div>
-					<span className="rounded-full border border-slate-200 bg-card px-2.5 py-0.5 text-xs">
-						{lesson.steps.length} steps
-					</span>
-				</header>
+				{/* the course beside it, and the step card, already say where you are */}
+				<h1 id="lesson-title" className="sr-only">
+					Lesson {index + 1} of {lessons.length}: {lesson.title}
+				</h1>
 
 				<DiagramFrame over={<Facts facts={current.facts} />}>
 					<Diagram
@@ -111,6 +98,7 @@ export function LessonView({ lessonId, step: asked }: { lessonId: string; step: 
 					<PartAbout id={selected} result={result} onBack={() => select(null)} />
 				) : (
 					<StepCard
+						lessonTitle={lesson.title}
 						step={current}
 						number={step}
 						count={lesson.steps.length}
@@ -137,6 +125,7 @@ const toneClass: Record<Tone, string> = {
 };
 
 function StepCard({
+	lessonTitle,
 	step,
 	number,
 	count,
@@ -147,6 +136,7 @@ function StepCard({
 	nextLabel,
 	onAbout,
 }: {
+	lessonTitle: string;
 	step: LessonStep;
 	number: number;
 	count: number;
@@ -161,6 +151,7 @@ function StepCard({
 	const system = useSystem();
 	const about = system.components.find((c) => c.id === step.about);
 	const action = step.action;
+	const setUp = useApp((s) => s.setUp);
 	// the step's words that need explaining, underlined the first time each appears
 	const annotated = annotate(
 		[...step.body, step.goodToKnow?.text ?? '', step.whenItFails ?? ''],
@@ -176,8 +167,9 @@ function StepCard({
 		>
 			{/* the explanation scrolls; Back and Next stay where they are */}
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 pb-2">
-				<p className="text-xs tracking-wider text-slate-500 uppercase">
-					Step {number + 1} of {count}
+				<p className="text-xs text-slate-500">
+					<span className="font-medium text-slate-700">{lessonTitle}</span> · Step{' '}
+					{number + 1} of {count}
 				</p>
 				<div
 					className="mt-2 h-1 overflow-hidden rounded-full bg-slate-100"
@@ -244,11 +236,10 @@ function StepCard({
 				)}
 				{action && (
 					<a
-						href={
-							action.kind === 'challenge'
-								? practiceHref(system.id, action.id)
-								: exploreHref(system.id)
-						}
+						href={exploreHref(system.id)}
+						onClick={() => {
+							if (action.presetId) setUp(action.presetId, action.journeyId ?? null);
+						}}
 						className={cx(
 							'mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg',
 							buttonSizes.md,
@@ -290,9 +281,9 @@ function StepCard({
 					)}
 				</div>
 				<p className="mt-2 hidden text-[11px] text-slate-500 lg:block">
-					<kbd className="rounded border border-slate-300 bg-card px-1">←</kbd>{' '}
-					<kbd className="rounded border border-slate-300 bg-card px-1">→</kbd> to move
-					between steps
+					Use the <kbd className="rounded border border-slate-300 bg-card px-1">←</kbd>{' '}
+					<kbd className="rounded border border-slate-300 bg-card px-1">→</kbd> keys to
+					move between steps
 				</p>
 			</div>
 		</section>

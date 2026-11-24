@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './controls';
 import { CrossIcon } from './icons';
+import { floatingRoot } from './fullScreen';
 
 type Props = {
 	title: string;
@@ -52,6 +53,6 @@ export function Modal({ title, onClose, children }: Props) {
 				<div className="overflow-y-auto px-5 py-4">{children}</div>
 			</div>
 		</div>,
-		document.body,
+		floatingRoot(),
 	);
 }

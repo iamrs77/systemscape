@@ -23,7 +23,14 @@ export function labelText(
 	const isApp = component.kind === 'client';
 	let line: string | undefined;
 	let tone: 'plain' | 'busy' | 'bad' = 'plain';
-	if (detail === 'load' && !isApp) {
+	// how busy a part is, only when that's worth knowing
+	if (
+		detail === 'load' &&
+		!isApp &&
+		status !== undefined &&
+		status !== 'ok' &&
+		status !== 'idle'
+	) {
 		if (status === 'down') {
 			line = 'down';
 			tone = 'bad';

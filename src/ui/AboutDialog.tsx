@@ -23,7 +23,7 @@ export function AboutDialog() {
 				</div>
 
 				<section className="space-y-2">
-					<SectionTitle>Design decisions</SectionTitle>
+					<SectionTitle>Design choices</SectionTitle>
 					<dl className="space-y-3">
 						{system.decisions.map((d) => (
 							<div key={d.title}>
@@ -37,33 +37,34 @@ export function AboutDialog() {
 				<section className="space-y-2">
 					<SectionTitle>How the simulation works</SectionTitle>
 					<p>
-						Each part can handle a set number of requests a second per instance. Every
-						journey sends its requests through the parts it uses, and the simulation
-						works out where things settle: how busy each part is, how many requests
-						fail, and how long users wait.
+						Each copy of a part can handle a set number of requests a second. Each
+						journey sends its requests through the parts it uses. The simulation then
+						works out how busy each part is, how many requests fail, and how long people
+						wait.
 					</p>
 					<ul className="list-disc space-y-1 pl-5 text-slate-500">
 						<li>
-							Busy parts get slower, sharply as they near full (a queueing model).
-							Past full, they fail the extra requests.
+							Busy parts get slower, and much slower as they get close to full. Past
+							full, they turn away the extra requests.
 						</li>
 						<li>
-							A failed call makes the caller wait for a timeout (
-							{formatMs(TIMEOUT_MS)}), and retries add load. Circuit breakers stop
-							calling a failing part and answer at once.
+							A failed call makes the caller wait {formatMs(TIMEOUT_MS)} before it
+							gives up. Retries add more work. Circuit breakers stop calling a failing
+							part and answer at once.
 						</li>
 						<li>
-							Optional steps can fail without failing the request. Background steps
-							don’t make users wait, but their failures are counted.
+							Optional steps can fail and the request still works. Background steps
+							don’t make anyone wait, but their failures still count.
 						</li>
 						<li>
-							Autoscaling adds instances to keep parts below 70% busy, unless the rush
-							is sudden. Databases and streams only change when you change them.
+							Autoscaling adds copies to keep each part under 70% busy, unless the
+							rush is sudden. Databases and event streams change only when you change
+							them.
 						</li>
 					</ul>
 					<p className="text-slate-500">
-						It’s a model, not a load test: it shows the steady state for the conditions
-						you set, and the numbers are illustrative.
+						This is a simple model, not a real test. It shows where things settle for
+						the settings you choose. The numbers are examples, not real data.
 					</p>
 				</section>
 

@@ -26,7 +26,7 @@ flowchart TB
   store["store.ts<br/>zustand: conditions + result"]
   subgraph view["View"]
     diagram["diagram/Diagram<br/>SVG, labels are buttons"]
-    ui["ui/<br/>home, course, lesson,<br/>sandbox, panels"]
+    ui["ui/<br/>home, course, lesson,<br/>Explore freely, panels"]
   end
 
   systems --> schema --> store
@@ -39,18 +39,18 @@ flowchart TB
   insights --> ui
 ```
 
-Everything below the store is a pure function of its inputs, so most of the app is tested without a browser: the simulation, the explanations, the lessons, the layout, the drawing maths and every challenge.
+Everything below the store is a pure function of its inputs: the simulation, the explanations, the lessons, the layout and the drawing maths.
 
-| Folder         | What's in it                                                                                                                                                                                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/model`    | The zod schema for a system, and `parseSystem`, which also checks every reference (a hop to a component that doesn't exist, a challenge naming a missing scenario) and lists every problem at once.                                                                                        |
-| `src/systems`  | One file per system, the registry (with the systems still to come), and the challenge helpers: a challenge's starting conditions, and whether a result meets its goal.                                                                                                                     |
-| `src/sim`      | The simulation, the plain-words explanations, and number formatting.                                                                                                                                                                                                                       |
-| `src/store.ts` | The conditions you've set, the latest result, what's selected and followed, the active challenge, and solved challenges (kept in `localStorage`). Every action that changes the conditions re-runs the simulation.                                                                         |
-| `src/learn`    | The lessons, made from a system's data, and what each step's diagram runs.                                                                                                                                                                                                                 |
-| `src/diagram`  | The diagram: where each part goes and how calls are routed (`layout.ts`), the projection and block shapes (`geometry.ts`), and the SVG (`Diagram.tsx`).                                                                                                                                    |
-| `src/ui`       | The home page, the course, the lesson and sandbox screens, and their panels.                                                                                                                                                                                                               |
-| `src/route.ts` | Which page you're on, read from the URL's hash: `#/` is the home page, `#/ride-hailing/learn/request-ride/3` a lesson's third step, `/practice/<id>` a challenge, `/explore` the sandbox ([ADR 0007](adr/0007-hash-routing.md)). The store follows the system and challenge the URL names. |
+| Folder         | What's in it                                                                                                                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/model`    | The zod schema for a system, and `parseSystem`, which also checks every reference (a hop to a component that doesn't exist, a hop from somewhere the journey hasn't reached) and lists every problem at once.                                     |
+| `src/systems`  | One file per system, and the registry (with the systems still to come).                                                                                                                                                                           |
+| `src/sim`      | The simulation, the plain-words explanations, and number formatting.                                                                                                                                                                              |
+| `src/store.ts` | The conditions you've set, the latest result, what's selected and followed, and the lessons you've finished (kept in `localStorage`). Every action that changes the conditions re-runs the simulation.                                            |
+| `src/learn`    | The lessons, made from a system's data, and what each step's diagram runs.                                                                                                                                                                        |
+| `src/diagram`  | The diagram: where each part goes and how calls are routed (`layout.ts`), the projection and block shapes (`geometry.ts`), and the SVG (`Diagram.tsx`).                                                                                           |
+| `src/ui`       | The home page, the course, the lesson and Explore freely screens, and their panels.                                                                                                                                                               |
+| `src/route.ts` | Which page you're on, read from the URL's hash: `#/` is the home page, `#/ride-hailing/learn/request-ride/3` a lesson's third step, `/explore` Explore freely ([ADR 0007](adr/0007-hash-routing.md)). The store follows the system the URL names. |
 
 ## The data
 
@@ -63,7 +63,7 @@ A system has **components** (a service, a database, a cache...) and **journeys**
 
 A hop can be made by only some requests (`share`), several times per request (`calls`), retried (`retries`), skipped without failing the request (`optional`), handed off without the user waiting (`mode: 'async'`), or happen only when a cache can't answer (`onMiss`). Components have a capacity per instance, a base latency, an instance count, and optionally the most instances autoscaling may add. Caches have a hit rate.
 
-**Scenarios** (presets) multiply the traffic, overall and per journey, and say whether it arrives suddenly. **Challenges** start from a scenario with some components down, and set a goal for one journey: a success rate, and optionally a latency.
+**Scenarios** (presets) multiply the traffic, overall and per journey, and say whether it arrives suddenly.
 
 [Adding a system](adding-a-system.md) covers the format in full.
 
@@ -87,9 +87,9 @@ Failure rates move halfway towards their new value each round, so retries and fa
 
 `explain(system, conditions, result)` turns the result into sentences, most serious first: which journeys are failing and the component to blame, what's overloaded and why autoscaling didn't save it, retry storms, tripped breakers, graceful degradation grouped by the missing component, background failures, and slow journeys.
 
-### Tested to be fair
+### A fix for each problem
 
-`rideHailing.test.ts` checks that the ordinary evening and Friday night run without failures, and that **every challenge fails its goal at the start and is solved by a sensible fix**. If someone retunes a capacity and makes a challenge impossible or already solved, the tests fail.
+Explore freely lists what `explain` says, most serious first, and offers a fix beside each problem, once: enough copies to bring an overloaded part back to 70% busy, bring back a part that's down, turn on circuit breakers or autoscaling, or turn off retries in a retry storm. One click changes the conditions, and the simulation runs again.
 
 ## The lessons
 
@@ -99,9 +99,9 @@ Failure rates move halfway towards their new value each round, so retries and fa
 - **A lesson per journey**, a step per call, in order: who calls whom and whether anyone waits, what the part being called does and why it's there (the first time it's met), what happens when it fails, and the numbers for that call (calls a second, the time it adds, copies), each with what it means in everyday terms. Optional calls, cache misses, retries and background work each get a note saying what they mean. When the system gives a journey a person and a scene, and a call an example, the lesson follows that person and shows what the call sends.
 - **Where the time goes**: the whole journey, with each call's share of the wait.
 - **Under load**: every scenario is run, and the one that's hardest on this journey is shown, with what the simulation's explanations say went wrong.
-- **Your turn**: the challenge whose goal is this journey, or the sandbox if there isn't one.
+- **Try it yourself**: a link that opens Explore freely on that night, following this journey.
 
-Each step says what the diagram shows: which parts are lit, which calls are drawn and which one is being explained, and the scenario it runs. A test checks every lesson only mentions parts, calls, scenarios and challenges that exist, for the ride-hailing app and for a tiny made-up system.
+Each step says what the diagram shows: which parts are lit, which calls are drawn and which one is being explained, and the scenario it runs.
 
 ### Words, explained
 
@@ -110,25 +110,19 @@ Each step says what the diagram shows: which parts are lit, which calls are draw
 ## The diagram
 
 - **Layout** (`diagram/layout.ts`, pure): one row per layer, from the apps to outside providers, with a wider gap where our system ends. Within a row, components are placed near the ones they connect to (by the average position of neighbours already placed), so fewer calls cross. Calls are routed between the rows and columns, in straight lines and right angles, never through a part.
-- **Drawing** (`diagram/geometry.ts`, pure): the layout is seen straight on, from above at an angle, so rows read top to bottom; each block is turned a quarter, so it shows two sides. A block is a rounded outline raised into a solid: the sides facing the viewer are shaded by which way they face, and the outline is drawn in ink of the same width at any size. Each part is one block with an icon for its kind on top: a database is a cylinder, an app a phone. How many copies a part runs shows as a ×3 badge, where copies matter (the sandbox, challenges, and the lesson step that explains them).
+- **Drawing** (`diagram/geometry.ts`, pure): the layout is seen straight on, from above at an angle, so rows read top to bottom; each block is turned a quarter, so it shows two sides. A block is a rounded outline raised into a solid: the sides facing the viewer are shaded by which way they face, and the outline, a deeper shade of the block's own colour, is the same width at any size. Each part is one soft, rounded block with a glossy top, a soft shadow and its icon on a white disc: a database is a stack of three discs, an app a phone. How many copies a part runs shows as a ×3 badge, where copies matter (Explore freely, and the lesson step that explains them).
 - **Calls and requests**: an arrow per call, dashed for background work; the call being explained is highlighted. Requests are dots moving along them (SVG animation, paused for people who ask for reduced motion): more for busier calls, red for the share that fails, fading before they arrive. The dots illustrate the result; they aren't the simulation itself.
 - **Status**: an overloaded part turns red and one that's down grey and dashed; with load shown, each label says how busy its part is.
 - **Names** are nameplates at the foot of each block, inside its lot, where no arrow goes; arrows arrive at the top of a lot and leave from the bottom. Each is an SVG button that tells screen readers the part's kind, how busy it is and how many copies it runs.
-- **Zoom**: a lesson step zooms smoothly to the parts it's about, and the row names next to them; the sandbox zooms to the journey being followed. You can drag to move and scroll or pinch to zoom (two fingers on a phone, so one still scrolls the page); the next step fits it again.
+- **Zoom**: a lesson step zooms smoothly to the parts it's about, and the row names next to them; Explore freely zooms to the journey being followed, and can fill the screen, with its side panel shown or hidden. You can drag to move and scroll or pinch to zoom (two fingers on a phone, so one still scrolls the page); the next step fits it again.
 
 ## Accessibility
 
 Every part on the diagram is a button (its label) with a description of its kind and state, every lesson step is reachable with the keyboard (and the arrow keys move between steps), the journey steps link to each part, the explanations panel is a live region, the switches are real switches, and dialogs close with Escape and return focus to where you were. Animation starts paused for people who ask for reduced motion, and can be paused at any time.
 
-## Testing
+## Checks
 
-| Layer      | What                                                                                                                                                                                                                             | Where                    |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| Simulation | Hand-checkable numbers on a small system: cache misses, queueing, retries, breakers on dead and overloaded parts, degradation, background failures, autoscaling, sudden spikes, determinism                                      | `src/sim/engine.test.ts` |
-| Systems    | Every system parses; normal scenarios are healthy; every challenge starts failing and has a working fix                                                                                                                          | `src/systems/*.test.ts`  |
-| Logic      | Explanations, formatting, layout, the drawing maths, every system's lessons, routes, and the store's rules (locks during challenges, clamping, saved progress)                                                                   | `src/**/*.test.ts`       |
-| Panels     | The whole app in jsdom, used like a person would: the home page, a lesson step by step (buttons and arrow keys), reading about a part, the end of a lesson, the sandbox, a challenge from failing to solved, the design write-up | `src/App.test.tsx`       |
-| Browser    | The production build in Chromium, on a desktop and a phone, failing on any console error                                                                                                                                         | `e2e/`                   |
+There are no automated tests ([ADR 0009](adr/0009-explore-instead-of-challenges.md)). `parseSystem` checks each system file when the app loads, and every push runs ESLint (with the React Compiler's rules), Prettier, the TypeScript checker and the build.
 
 ## Limits
 

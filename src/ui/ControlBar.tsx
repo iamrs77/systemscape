@@ -1,34 +1,66 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { TRAFFIC_RANGE, useApp, useChallenge, useSystem, type Option } from '@/store';
-import { Button, Toggle } from './controls';
+import { useId } from 'react';
+import { TRAFFIC_RANGE, useApp, useSystem, type Option } from '@/store';
 import { cx } from './cx';
-import { ChevronIcon, ResetIcon } from './icons';
+import { ResetIcon } from './icons';
 
-/** Scenario and traffic up front; how the system copes, one click away. */
+const switches: { option: Option; label: string; description: string }[] = [
+	{
+		option: 'autoscale',
+		label: 'Autoscaling',
+		description: 'Adds copies when a part gets busy. It takes a few minutes.',
+	},
+	{
+		option: 'retries',
+		label: 'Retries',
+		description: 'Tries a failed call again. This hides small problems, but adds more work.',
+	},
+	{
+		option: 'circuitBreakers',
+		label: 'Circuit breakers',
+		description: 'Stops calling a part that keeps failing, so nobody waits for it.',
+	},
+	{
+		option: 'sudden',
+		label: 'Sudden rush',
+		description: 'Everyone arrives at once, too fast for autoscaling to keep up.',
+	},
+];
+
+const times = (traffic: number) => traffic.toFixed(2).replace(/\.?0+$/, '');
+
+const chip =
+	'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors';
+
+/**
+ * Everything you can change, in a slim strip under the diagram so the diagram
+ * keeps the room: the evening, the traffic, the safety features. Each one says
+ * what it does when you hover it.
+ */
 export function ControlBar() {
 	const system = useSystem();
-	const challenge = useChallenge();
 	const presetId = useApp((s) => s.presetId);
-	const traffic = useApp((s) => s.input.traffic);
+	const input = useApp((s) => s.input);
 	const applyPreset = useApp((s) => s.applyPreset);
 	const setTraffic = useApp((s) => s.setTraffic);
+	const setOption = useApp((s) => s.setOption);
 	const reset = useApp((s) => s.reset);
 	const sliderId = useId();
-	const locked = challenge !== undefined;
 
 	return (
-		<div className="surface flex flex-wrap items-center gap-x-4 gap-y-2.5 px-4 py-3">
-			<div role="group" aria-label="Scenario" className="flex flex-wrap gap-1">
+		<section
+			aria-label="What you can change"
+			className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-200 bg-card px-3 py-2"
+		>
+			<div role="group" aria-label="Which evening" className="flex flex-wrap gap-1">
 				{system.presets.map((p) => (
 					<button
 						key={p.id}
 						type="button"
 						aria-pressed={p.id === presetId}
-						disabled={locked && p.id !== presetId}
-						title={locked ? 'Set by the challenge' : p.description}
+						title={p.description}
 						onClick={() => applyPreset(p.id)}
 						className={cx(
-							'rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-30',
+							chip,
 							p.id === presetId
 								? 'border-cyan-600 bg-cyan-600 text-white'
 								: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
@@ -38,7 +70,8 @@ export function ControlBar() {
 					</button>
 				))}
 			</div>
-			<div className="flex min-w-52 flex-1 items-center gap-3">
+
+			<div className="flex min-w-48 flex-1 items-center gap-2.5">
 				<label htmlFor={sliderId} className="shrink-0 text-xs text-slate-500">
 					Traffic
 				</label>
@@ -48,119 +81,62 @@ export function ControlBar() {
 					min={Math.log(TRAFFIC_RANGE.min)}
 					max={Math.log(TRAFFIC_RANGE.max)}
 					step={0.01}
-					value={Math.log(traffic)}
-					disabled={locked}
-					aria-valuetext={`${traffic.toFixed(2)} times normal`}
+					value={Math.log(input.traffic)}
+					aria-valuetext={`${times(input.traffic)} times as busy as a normal evening`}
 					onChange={(e) =>
 						setTraffic(Number(Math.exp(Number(e.target.value)).toFixed(2)))
 					}
-					className="h-1 flex-1 cursor-pointer accent-cyan-600 disabled:cursor-not-allowed disabled:opacity-40"
+					className="h-1 min-w-0 flex-1 cursor-pointer accent-cyan-600"
 				/>
-				<span className="w-11 shrink-0 text-right text-sm font-semibold text-slate-900 tabular-nums">
-					{traffic.toFixed(2).replace(/\.?0+$/, '')}×
-				</span>
-			</div>
-			<div className="flex items-center gap-1">
-				<ResilienceMenu />
-				<Button size="sm" variant="ghost" onClick={reset} title="Undo your changes">
-					<ResetIcon width={14} height={14} />
-					Reset
-				</Button>
-			</div>
-		</div>
-	);
-}
-
-const switches: { option: Option; label: string; description: string }[] = [
-	{
-		option: 'autoscale',
-		label: 'Autoscaling',
-		description:
-			'Services add instances by themselves when they get busy, up to a limit. It takes minutes, so it can’t catch a sudden rush.',
-	},
-	{
-		option: 'retries',
-		label: 'Retries',
-		description:
-			'Failed calls are tried again. That hides brief blips, but piles more load on something already struggling.',
-	},
-	{
-		option: 'circuitBreakers',
-		label: 'Circuit breakers',
-		description:
-			'Callers stop calling something that keeps failing, and answer at once instead of waiting for a timeout.',
-	},
-	{
-		option: 'sudden',
-		label: 'Sudden rush',
-		description:
-			'The traffic arrives within minutes, faster than autoscaling can add instances.',
-	},
-];
-
-/** The switches for how the system copes with load and failure, each explained. */
-function ResilienceMenu() {
-	const input = useApp((s) => s.input);
-	const setOption = useApp((s) => s.setOption);
-	const locked = useChallenge() !== undefined;
-	const [open, setOpen] = useState(false);
-	const root = useRef<HTMLDivElement>(null);
-	const panelId = useId();
-	const on = switches.filter((s) => input[s.option]).length;
-
-	useEffect(() => {
-		if (!open) return;
-		const onDown = (e: MouseEvent) => {
-			if (!root.current?.contains(e.target as Node)) setOpen(false);
-		};
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') setOpen(false);
-		};
-		document.addEventListener('mousedown', onDown);
-		document.addEventListener('keydown', onKey);
-		return () => {
-			document.removeEventListener('mousedown', onDown);
-			document.removeEventListener('keydown', onKey);
-		};
-	}, [open]);
-
-	return (
-		<div ref={root} className="relative">
-			<Button
-				size="sm"
-				aria-expanded={open}
-				aria-controls={panelId}
-				onClick={() => setOpen(!open)}
-			>
-				Resilience
-				<span className="rounded bg-slate-200 px-1.5 text-[11px] text-slate-600">
-					{on} on
-				</span>
-				<ChevronIcon
-					width={13}
-					height={13}
-					className={cx('transition-transform', !open && 'rotate-180')}
-				/>
-			</Button>
-			{open && (
-				<div
-					id={panelId}
-					className="surface absolute bottom-full left-0 z-40 mb-2 w-[min(20rem,calc(100vw-2rem))] space-y-3 p-3 sm:right-0 sm:left-auto"
+				<span
+					className="w-10 shrink-0 font-mono text-sm font-semibold text-ink tabular-nums"
+					title={`${times(input.traffic)} times as busy as a normal evening`}
 				>
-					{switches.map((s) => (
-						<div key={s.option}>
-							<Toggle
-								label={s.label}
-								description={s.description}
-								checked={input[s.option]}
-								disabled={s.option === 'sudden' && locked}
-								onChange={(checked) => setOption(s.option, checked)}
+					{times(input.traffic)}×
+				</span>
+			</div>
+
+			<div role="group" aria-label="Safety features" className="flex flex-wrap gap-1">
+				{switches.map((s) => {
+					const on = input[s.option];
+					return (
+						<button
+							key={s.option}
+							type="button"
+							role="switch"
+							aria-checked={on}
+							aria-description={s.description}
+							title={s.description}
+							onClick={() => setOption(s.option, !on)}
+							className={cx(
+								chip,
+								on
+									? 'border-cyan-300 bg-cyan-50 text-cyan-800'
+									: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+							)}
+						>
+							<span
+								aria-hidden="true"
+								className={cx(
+									'size-1.5 rounded-full',
+									on ? 'bg-cyan-500' : 'bg-slate-300',
+								)}
 							/>
-							<p className="mt-0.5 pl-11 text-xs text-slate-500">{s.description}</p>
-						</div>
-					))}
-				</div>
-			)}
-		</div>
+							{s.label}
+						</button>
+					);
+				})}
+			</div>
+
+			<button
+				type="button"
+				onClick={reset}
+				title="Undo your changes"
+				className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-ink"
+			>
+				<ResetIcon width={12} height={12} />
+				Reset
+			</button>
+		</section>
 	);
 }

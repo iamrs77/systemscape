@@ -16,7 +16,7 @@ import { explain, SLOW_MS } from '@/sim/insights';
  * Lessons, made from a system's data, so every system gets them without
  * writing any: first the big picture, a row of the diagram at a time; then
  * one lesson per journey, a step per call, ending with what happens under
- * load and a challenge to try. Pure, so every system's lessons are tested.
+ * load and a chance to try it yourself. Pure, so every system's lessons are tested.
  */
 
 export type Tone = 'plain' | 'wait' | 'background' | 'warn';
@@ -48,7 +48,8 @@ export type LessonStep = {
 	/** The part this step is about, to read more on. */
 	about?: string;
 	/** Where to go from the last step. */
-	action?: { kind: 'challenge'; id: string; label: string } | { kind: 'explore'; label: string };
+	/** Opens Explore freely, set to an evening and following a journey. */
+	action?: { kind: 'explore'; label: string; presetId?: string; journeyId?: string };
 };
 
 export type Lesson = {
@@ -64,31 +65,31 @@ export const OVERVIEW = 'overview';
 const tierIntro: Record<Layer, { title: string; text: string }> = {
 	clients: {
 		title: 'The apps',
-		text: 'Everything starts on someone’s phone. The apps keep almost nothing themselves: they ask the backend for everything they show.',
+		text: 'Everything starts on someone’s phone. The apps keep very little on the phone. They ask the backend for everything they show.',
 	},
 	balancing: {
-		title: 'Spreading the load',
-		text: 'Every request from the apps lands here first. The parts behind it run as several copies, and this decides which copy gets each request: the least busy one, and never one that has stopped working.',
+		title: 'Sharing out the work',
+		text: 'Every request from the apps comes here first. The parts behind it run as several copies. This part picks which copy gets each request. It picks the least busy one, and skips any copy that has stopped working.',
 	},
 	edge: {
 		title: 'The front door',
-		text: 'Requests from the apps come in through here. It’s one place to check who’s calling, turn away too many requests, and keep connections to the apps open.',
+		text: 'Requests from the apps come in through here. It checks who is asking, and turns away anyone who sends too many requests. It also keeps a live connection open to each phone.',
 	},
 	services: {
 		title: 'The services',
-		text: 'The parts that do the work, each with one job. Keeping them separate lets each run as many copies as it needs, fail without taking the others down, and change on its own.',
+		text: 'These parts do the real work, and each one has one job. Because they are separate, each can run as many copies as it needs. If one breaks, the others keep going. And each one can be changed without touching the rest.',
 	},
 	async: {
 		title: 'Background work',
-		text: 'Work nobody waits for. It’s handed off to happen a moment later, so when something here is slow or broken, the app itself doesn’t slow down.',
+		text: 'This is work that nobody waits for. It is handed over to happen a moment later. So if something here is slow or broken, the app stays fast.',
 	},
 	data: {
 		title: 'The data',
-		text: 'Where things are kept. Data is harder to grow than code: you can’t just start another copy, so it’s split into shards that each hold part of it, or kept in memory as a cache to answer faster.',
+		text: 'This is where things are stored. Data is harder to grow than code, because you can’t just start another copy. So the data is split into pieces called shards, each kept on its own machine. Some of it is also kept in memory, in a cache, to answer faster.',
 	},
 	external: {
 		title: 'Outside providers',
-		text: 'Other companies’ systems, like a payment provider. They’re not ours: we can’t add copies or fix them, only cope when they’re slow or down.',
+		text: 'These are systems run by other companies, like a payment provider. They aren’t ours, so we can’t add copies or fix them. We can only cope when they are slow or down.',
 	},
 };
 
@@ -163,18 +164,22 @@ function overview(system: System): Lesson {
 	return {
 		id: OVERVIEW,
 		title: 'The big picture',
-		summary: `What the ${system.name.toLowerCase()} is made of, a row at a time.`,
+		summary: `The parts of the ${system.name.toLowerCase()}, one row at a time.`,
 		steps: [
 			{
 				title: 'What it does',
 				body: [
 					system.description[0]!,
-					'The diagram shows its backend: every block is one part, and the parts are grouped into rows by what they do. Requests start in the top row, in the apps, and work their way down.',
+					'The diagram shows its backend. Each block is one part. Parts that do similar jobs sit in the same row. Requests start in the apps at the top and move down.',
 				],
 				facts: [
 					{ label: 'Parts', value: String(system.components.length) },
 					{ label: 'Rows', value: String(used.length) },
-					{ label: 'Journeys', value: String(system.journeys.length) },
+					{
+						label: 'Journeys',
+						value: String(system.journeys.length),
+						hint: 'things people do in the app',
+					},
 				],
 				tags: [],
 				focus: null,
@@ -185,15 +190,15 @@ function overview(system: System): Lesson {
 				title: 'How to read it',
 				body: [
 					copies
-						? `Each block is one part, with an icon on top that says what kind. A badge like ×${copies.instances} beside **${copies.name}** means ${copies.instances} copies of it are running: when it gets busy, more copies share the work. A cylinder is a database.`
-						: 'Each block is one part, with an icon on top that says what kind. A badge like ×3 means three copies of it are running: when it gets busy, more copies share the work. A cylinder is a database.',
-					`Arrows are calls from one part to another, and the dots moving along them are requests: here, the ones for “${example.name}”. A dashed arrow is background work that nobody waits for.`,
+						? `Each block is one part. Its icon shows what kind of part it is, and a cylinder is a database. A badge like ×${copies.instances} beside **${copies.name}** means ${copies.instances} copies of it are running. When it gets busy, more copies share the work.`
+						: 'Each block is one part. Its icon shows what kind of part it is, and a cylinder is a database. A badge like ×3 means three copies of it are running. When it gets busy, more copies share the work.',
+					`An arrow means one part calls another. The dots moving along the arrows are requests. Here, they are requests for “${example.name}”. A dashed arrow is background work that nobody waits for.`,
 				],
 				facts: [],
 				tags: [
 					{ text: 'Orange dot: a request', tone: 'wait' },
-					{ text: 'Violet dot: background work', tone: 'background' },
-					{ text: 'Red dot: a request that fails', tone: 'warn' },
+					{ text: 'Purple dot: background work', tone: 'background' },
+					{ text: 'Red dot: a failed request', tone: 'warn' },
 				],
 				focus: null,
 				edges: example.hops.map((h): [string, EdgeLook] => [edgeKey(h.from, h.to), 'flow']),
@@ -222,8 +227,8 @@ function overview(system: System): Lesson {
 			{
 				title: 'Next: follow a request',
 				body: [
-					'Those are the parts. What makes a design work is how they talk to each other: who calls whom, who waits, and what happens when one of them can’t answer.',
-					`Next, follow what happens when someone uses the app, one call at a time, starting with “${system.journeys[0]!.name}”.`,
+					'Those are the parts. But a design works because of how the parts talk to each other. Who calls whom? Who has to wait? And what happens when a part can’t answer?',
+					`Next, follow what happens when someone uses the app, one call at a time. We start with “${system.journeys[0]!.name}”.`,
 				],
 				facts: [],
 				tags: [],
@@ -235,7 +240,9 @@ function overview(system: System): Lesson {
 	};
 }
 
-const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+/** “Finds drivers” to “finds drivers”, but “ETA …” stays as it is. */
+const lowerFirst = (text: string) =>
+	/^[A-Z]{2}/.test(text) ? text : text.charAt(0).toLowerCase() + text.slice(1);
 
 /** Who waits: the person the lesson follows ("Rohit"), or "the rider", from "Rider app". */
 function whoWaits(system: System, journey: Journey) {
@@ -289,7 +296,6 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 		.sort((a, b) => b.wait - a.wait)[0];
 
 	const load = underLoad(system, journey);
-	const challenge = system.challenges.find((c) => c.goal.journey === journey.id);
 	const hasBackground = journey.hops.some((h) => h.mode === 'async');
 	const allFlowing = keys.map((key): [string, EdgeLook] => [key, 'flow']);
 
@@ -326,12 +332,12 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 			{
 				title: 'Where the time goes',
 				body: [
-					`From tap to answer, ${who} waits about ${formatMs(state.latencyMs)} on an ordinary evening: ${feelOfMs(state.latencyMs)}.`,
+					`On a normal evening, ${who} waits about ${formatMs(state.latencyMs)} from tap to answer. That’s ${feelOfMs(state.latencyMs)}.`,
 					slowest
-						? `The longest wait is “${slowest.hop.label}”, at ${formatMs(slowest.wait)}: **${part(slowest.hop.from).name}** waiting on **${part(slowest.hop.to).name}**.`
+						? `The longest step is “${slowest.hop.label}”, at ${formatMs(slowest.wait)}. That’s **${part(slowest.hop.from).name}** waiting for **${part(slowest.hop.to).name}**.`
 						: '',
 					hasBackground
-						? 'The dashed calls happen in the background, so they add nothing to the wait.'
+						? 'The dashed calls happen in the background. They add nothing to the wait.'
 						: '',
 				].filter(Boolean),
 				facts: [
@@ -364,7 +370,7 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 					{
 						label: 'Traffic',
 						value: `${load.preset.traffic}×`,
-						hint: `${load.preset.traffic} times a normal evening`,
+						hint: `${load.preset.traffic} times as busy as normal`,
 					},
 					{
 						label: 'Succeed',
@@ -378,7 +384,7 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 					},
 				],
 				tags: load.healthy
-					? [{ text: 'It holds up', tone: 'plain' }]
+					? [{ text: 'It keeps working', tone: 'plain' }]
 					: [{ text: 'Something breaks', tone: 'warn' }],
 				focus: involved,
 				edges: allFlowing,
@@ -386,36 +392,24 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 				presetId: load.preset.id,
 				about: load.culprit,
 			},
-			challenge
-				? {
-						title: `Your turn: ${challenge.title.toLowerCase()}`,
-						body: [
-							challenge.story,
-							'Can you keep it running? Change things and the goal is checked as you go.',
-						],
-						facts: [],
-						tags: [],
-						focus: involved,
-						edges: allFlowing,
-						journeyId: journey.id,
-						action: {
-							kind: 'challenge',
-							id: challenge.id,
-							label: 'Start the challenge',
-						},
-					}
-				: {
-						title: 'Your turn',
-						body: [
-							'Push the traffic up, take parts down, and switch the safety features on and off, and see what this journey does.',
-						],
-						facts: [],
-						tags: [],
-						focus: involved,
-						edges: allFlowing,
-						journeyId: journey.id,
-						action: { kind: 'explore', label: 'Explore freely' },
-					},
+			{
+				title: 'Try it yourself',
+				body: [
+					`Now try it in Explore freely. It opens on ${load.preset.name}, following “${journey.name}”. Add copies of the part that’s struggling, or turn on a safety feature. Then watch what changes.`,
+					'When something breaks, the panel beside the diagram tells you why. It also offers a fix you can try with one click.',
+				],
+				facts: [],
+				tags: [],
+				focus: involved,
+				edges: allFlowing,
+				journeyId: journey.id,
+				action: {
+					kind: 'explore',
+					label: `Explore ${load.preset.name}`,
+					presetId: load.preset.id,
+					journeyId: journey.id,
+				},
+			},
 		],
 	};
 }
@@ -423,10 +417,10 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 function callSentence(hop: Hop, from: Component, to: Component) {
 	if (hop.onMiss) {
 		const miss = from.hitRate !== undefined ? formatShare(1 - from.hitRate) : 'some';
-		return `When **${from.name}** doesn’t have the answer (${miss} of the time), it asks **${to.name}**.`;
+		return `When **${from.name}** doesn’t have the answer, it asks **${to.name}**. That happens ${miss} of the time.`;
 	}
 	if (hop.mode === 'async') {
-		return `**${from.name}** hands this to **${to.name}** and carries on without waiting.`;
+		return `**${from.name}** passes this to **${to.name}** and doesn’t wait for an answer.`;
 	}
 	if (from.kind === 'client') return `**${from.name}** sends a request to **${to.name}**.`;
 	return `**${from.name}** calls **${to.name}**, and waits for the answer.`;
@@ -437,10 +431,12 @@ function hopTags(hop: Hop, who: string): LessonStep['tags'] {
 	if (hop.mode === 'async') tags.push({ text: 'Background: nobody waits', tone: 'background' });
 	else tags.push({ text: `${capitalise(who)} waits for this`, tone: 'wait' });
 	if (hop.optional) tags.push({ text: 'Optional', tone: 'plain' });
-	if (hop.onMiss) tags.push({ text: 'Only on a cache miss', tone: 'plain' });
+	if (hop.onMiss) tags.push({ text: 'Only if it’s not in the cache', tone: 'plain' });
 	if (hop.share < 1) tags.push({ text: `${formatShare(hop.share)} of requests`, tone: 'plain' });
 	if (hop.calls !== 1) tags.push({ text: `${hop.calls} calls per request`, tone: 'plain' });
-	if (hop.retries > 0) tags.push({ text: `Tried again up to ${hop.retries}×`, tone: 'plain' });
+	if (hop.retries > 0) {
+		tags.push({ text: `Tried again up to ${plural(hop.retries, 'time')}`, tone: 'plain' });
+	}
 	return tags;
 }
 
@@ -462,13 +458,14 @@ function hopFacts(
 		facts.push({
 			label: 'Answered here',
 			value: formatShare(to.hitRate),
-			hint: `only ${Math.round((1 - to.hitRate) * 100)} in 100 need the slow way`,
+			hint: `only ${Math.round((1 - to.hitRate) * 100)} in 100 take the slow way`,
 		});
 	} else if (to.kind === 'database') {
 		facts.push({
 			label: 'Shards',
 			value: String(copies),
-			hint: `split across ${copies} machines`,
+			hint:
+				copies === 1 ? 'all the data on one machine' : `data split over ${copies} machines`,
 		});
 	} else if (to.kind !== 'client' && to.kind !== 'external') {
 		facts.push({
@@ -484,23 +481,23 @@ function goodToKnow(hop: Hop, to: Component, firstMeeting: boolean): LessonStep[
 	if (hop.optional) {
 		return {
 			title: 'It can fail, and that’s fine',
-			text: `This call is optional: if **${to.name}** doesn’t answer in time, the request still succeeds, just a little worse. That’s called graceful degradation.`,
+			text: `This call is optional. If **${to.name}** doesn’t answer in time, the request still works, just not as well. This is called graceful degradation.`,
 		};
 	}
 	if (firstMeeting && to.kind !== 'client') return { title: `Why ${to.name}?`, text: to.why };
 	if (hop.mode === 'async') {
 		return {
 			title: 'Why in the background?',
-			text: 'Nobody needs the answer straight away, so it’s handed off. If this part is slow or down, the work waits and is tried again, and nobody notices.',
+			text: 'Nobody needs the answer right away, so the work is handed over. If this part is slow or down, the work waits and is tried again later. Nobody notices.',
 		};
 	}
 	if (hop.retries > 0) {
 		return {
 			title: 'Trying again',
-			text: 'A failed call is tried again. That hides brief blips, but when the part is overloaded, every retry is more load on it.',
+			text: 'A failed call is tried again. That hides small, short problems. But if the part is already overloaded, each retry gives it even more work.',
 		};
 	}
-	return { title: `About ${to.name}`, text: to.scaling };
+	return { title: `How ${to.name} grows`, text: to.scaling };
 }
 
 /** The scenario that's hardest on a journey, and what happens to it. */
@@ -526,14 +523,27 @@ function underLoad(system: System, journey: Journey) {
 			(i.level === 'bad' || i.level === 'warn') &&
 			(i.text.startsWith(journey.name) || (i.componentId && involved.has(i.componentId))),
 	);
+	// the part this journey's own trouble is blamed on, or else the first one named
+	const culprit =
+		insights.find((i) => i.text.startsWith(`${journey.name}:`))?.componentId ??
+		insights.find((i) => i.componentId)?.componentId;
+	// the story's first line says how the journey does, so then it says why: what's
+	// wrong with the parts behind it, the culprit first, rather than how each journey does
+	const aboutJourney = (text: string) =>
+		system.journeys.some((j) => text.startsWith(`${j.name}:`));
+	const causes = insights
+		.filter((i) => !aboutJourney(i.text))
+		.sort((a, b) => Number(b.componentId === culprit) - Number(a.componentId === culprit));
+	const who = whoWaits(system, journey);
 	const story = healthy
 		? [
-				`“${journey.name}” holds up: ${formatShare(worst.state.success)} of requests still succeed, in about ${formatMs(worst.state.latencyMs)}. Autoscaling adds copies as the traffic grows.`,
+				`“${journey.name}” keeps working. ${formatShare(worst.state.success)} of requests still succeed, in about ${formatMs(worst.state.latencyMs)}. Autoscaling adds copies as the traffic grows.`,
 			]
 		: [
-				`Now only ${formatShare(worst.state.success)} of “${journey.name}” requests succeed, and ${whoWaits(system, journey)} waits about ${formatMs(worst.state.latencyMs)}.`,
-				...insights.slice(0, 2).map((i) => i.text),
+				worst.state.success < 0.99
+					? `Now only ${formatShare(worst.state.success)} of “${journey.name}” requests succeed. ${capitalise(feelOfShare(worst.state.success))}. ${capitalise(who)} waits about ${formatMs(worst.state.latencyMs)}.`
+					: `“${journey.name}” still works, but ${who} now waits about ${formatMs(worst.state.latencyMs)}. That’s ${feelOfMs(worst.state.latencyMs)}.`,
+				...(causes.length ? causes : insights).slice(0, 2).map((i) => i.text),
 			];
-	const culprit = insights.find((i) => i.componentId)?.componentId;
 	return { preset: worst.preset, state: worst.state, healthy, story, culprit };
 }

@@ -91,7 +91,7 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 				<Stat label="Succeed" value={formatShare(state.success)} />
 				<Stat label="Wait" value={formatMs(state.latencyMs)} />
 				<Stat
-					label="Degraded"
+					label="Partly OK"
 					value={state.degraded > 0.001 ? formatShare(state.degraded) : '–'}
 				/>
 			</dl>
@@ -146,14 +146,19 @@ function JourneySteps({ journey, state }: { journey: Journey; state: JourneyStat
 							<div className="mt-1 flex flex-wrap gap-1 pl-5.5">
 								{hop.mode === 'async' && <Badge color="#a78bfa">background</Badge>}
 								{hop.optional && <Badge>optional</Badge>}
-								{hop.onMiss && <Badge>only on a cache miss</Badge>}
+								{hop.onMiss && <Badge>only if not in the cache</Badge>}
 								{hop.share < 1 && (
 									<Badge>{formatShare(hop.share)} of requests</Badge>
 								)}
 								{hop.calls !== 1 && <Badge>{hop.calls} calls each</Badge>}
-								{hop.retries > 0 && <Badge>retries {hop.retries}×</Badge>}
+								{hop.retries > 0 && (
+									<Badge>
+										up to {hop.retries}{' '}
+										{hop.retries === 1 ? 'retry' : 'retries'}
+									</Badge>
+								)}
 								{hopState.breakerOpen && (
-									<Badge color="#f59e0b">breaker open</Badge>
+									<Badge color="#f59e0b">breaker tripped</Badge>
 								)}
 								{failing && (
 									<Badge color={statusColor.overloaded}>

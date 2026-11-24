@@ -54,22 +54,10 @@ export function parseSystem(input: SystemInput): System {
 	}
 
 	const journeyIds = new Set(system.journeys.map((j) => j.id));
-	const presetIds = new Set(system.presets.map((p) => p.id));
 	for (const preset of system.presets) {
 		for (const journey of Object.keys(preset.journeyTraffic)) {
 			if (!journeyIds.has(journey))
 				problems.push(`preset ${preset.id}: no journey "${journey}"`);
-		}
-	}
-	for (const challenge of system.challenges) {
-		if (!presetIds.has(challenge.preset)) {
-			problems.push(`challenge ${challenge.id}: no preset "${challenge.preset}"`);
-		}
-		if (!journeyIds.has(challenge.goal.journey)) {
-			problems.push(`challenge ${challenge.id}: no journey "${challenge.goal.journey}"`);
-		}
-		for (const down of challenge.down) {
-			if (!ids.has(down)) problems.push(`challenge ${challenge.id}: no component "${down}"`);
 		}
 	}
 
