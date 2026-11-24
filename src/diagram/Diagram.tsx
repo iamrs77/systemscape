@@ -260,30 +260,47 @@ export function Diagram({
 		],
 		bare ? 0.6 : 1.1,
 	);
+	// room at the bottom for the zoom buttons, so they don't cover the last row's names
+	if (!bare) whole.h += 1.4;
 	const zoomed = parts.filter((p) => zoom?.has(p.component.id));
+	/**
+	 * A zoomed view that reaches the top edge of a region box takes in all of
+	 * its name tag, which sits on that edge, rather than cutting it in half.
+	 */
+	const withTags = (box: Box): Box => {
+		let top = box.y;
+		for (const region of regions) {
+			const edge = project(regionLeft, region.top)[1];
+			if (top < edge + 0.5 && top > edge - 0.9) top = edge - 0.9;
+		}
+		// and, like the whole picture, room at the bottom for the zoom buttons
+		return { ...box, y: top, h: box.h + box.y - top + (bare ? 0 : 1.4) };
+	};
 	// the names of the rows being zoomed in on stay in view too
 	const zoomedRows = new Set(zoomed.map((p) => p.component.layer));
 	const shown =
 		zoomed.length === 0
 			? whole
 			: within(
-					boxAround(
-						[
-							...zoomed.flatMap((p): Pt[] => [
-								project(p.x - LOT_SIZE / 2 - 0.6, p.z + LOT_SIZE / 2 + 0.6),
-								project(p.x + LOT_SIZE / 2 + 0.6, p.z - LOT_SIZE / 2 - 0.6),
-								[p.labelAt[0], p.peak - 0.4],
-							]),
-							...(bare
-								? []
-								: tiers
-										.filter((t) => zoomedRows.has(t.row.layer))
-										.map((t): Pt => [
-											t.at[0] - t.text.length * 0.5 * CHAR - 0.4,
-											t.at[1],
-										])),
-						],
-						1.4,
+					withTags(
+						boxAround(
+							[
+								...zoomed.flatMap((p): Pt[] => [
+									project(p.x - LOT_SIZE / 2 - 0.6, p.z + LOT_SIZE / 2 + 0.6),
+									project(p.x + LOT_SIZE / 2 + 0.6, p.z - LOT_SIZE / 2 - 0.6),
+									[p.labelAt[0], p.peak - 0.4],
+								]),
+								...(bare
+									? []
+									: tiers
+											.filter((t) => zoomedRows.has(t.row.layer))
+											.map((t): Pt => [
+												t.at[0] - t.text.length * 0.5 * CHAR - 0.4,
+												t.at[1],
+											])),
+							],
+							1.4,
+						),
 					),
 					whole,
 				);

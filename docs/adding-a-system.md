@@ -1,6 +1,6 @@
 # Adding a system
 
-A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the diagram, the lessons, the simulation and the panels all come from the data. `src/systems/rideHailing.ts` and `src/systems/videoStreaming.ts` are complete examples.
+A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the diagram, the lessons, the simulation and the panels all come from the data. `src/systems/rideHailing.ts`, `src/systems/videoStreaming.ts` and `src/systems/upiPayments.ts` are complete examples.
 
 ## 1. Describe it
 

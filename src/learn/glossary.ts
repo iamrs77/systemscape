@@ -448,6 +448,43 @@ export const glossary: Term[] = [
 		forms: ['live streaming', 'live stream', 'live video'],
 	},
 	{
+		id: 'upi',
+		term: 'UPI',
+		meaning:
+			'India’s system for sending money between any two bank accounts from a phone app, in seconds, using an ID instead of account numbers.',
+		forms: ['upi'],
+	},
+	{
+		id: 'upi-id',
+		term: 'UPI ID',
+		meaning:
+			'An address for a bank account, like raju.tea@okaxis. The part after @ says which bank or app it belongs to.',
+		like: 'An email address, but for receiving money.',
+		forms: ['upi id', 'upi ids'],
+	},
+	{
+		id: 'npci',
+		term: 'NPCI',
+		meaning:
+			'The National Payments Corporation of India, set up by India’s banks. It runs UPI’s switch, which passes every payment from one bank to another.',
+		forms: ['npci'],
+	},
+	{
+		id: 'pending',
+		term: 'Pending',
+		meaning:
+			'Not known yet. No answer came back in time, so the money may or may not have moved. The app asks later what happened, instead of paying again.',
+		like: 'A posted letter you haven’t had a reply to: you ask if it arrived, you don’t post a second one.',
+		forms: ['pending'],
+	},
+	{
+		id: 'qr-code',
+		term: 'QR code',
+		meaning:
+			'A square pattern a phone camera can read. At a shop, it holds the shop’s UPI ID, so nobody has to type it.',
+		forms: ['qr code', 'qr codes'],
+	},
+	{
 		id: 'cdn',
 		term: 'CDN',
 		meaning:

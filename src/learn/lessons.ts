@@ -341,7 +341,7 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 			{
 				title: 'Where the time goes',
 				body: [
-					`On a normal evening, ${who} waits about ${formatMs(state.latencyMs)} for an answer. That’s ${feelOfMs(state.latencyMs)}.`,
+					`Normally, ${who} waits about ${formatMs(state.latencyMs)} for an answer. That’s ${feelOfMs(state.latencyMs)}.`,
 					slowest
 						? `The longest step is “${slowest.hop.label}”, at ${formatMs(slowest.wait)}. That’s **${part(slowest.hop.from).name}** waiting for **${part(slowest.hop.to).name}**.`
 						: '',

@@ -4,23 +4,28 @@ import { useApp } from '@/store';
 import { cx } from './cx';
 import { ExpandIcon, PauseIcon, PlayIcon, ShrinkIcon } from './icons';
 
-/** Small labelled numbers, like the ones over the diagram. */
+/**
+ * Small labelled numbers, in a row above the diagram: on a phone a slim one,
+ * with just the numbers.
+ */
 export function Facts({ facts }: { facts: { label: string; value: string; hint?: string }[] }) {
 	if (facts.length === 0) return null;
 	return (
-		<dl className="flex flex-wrap gap-2">
+		<dl className="flex gap-1.5 sm:flex-wrap sm:gap-2">
 			{facts.map((fact) => (
 				<div
 					key={fact.label}
-					className="min-w-24 rounded-xl border border-slate-200 bg-white/95 px-3 py-1.5 shadow-sm"
+					className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white/95 px-2.5 py-1.5 shadow-sm sm:min-w-24 sm:flex-none sm:px-3"
 				>
 					<dt className="text-[10px] tracking-wider text-slate-500 uppercase">
 						{fact.label}
 					</dt>
-					<dd className="font-mono text-base font-semibold text-ink tabular-nums">
+					<dd className="font-mono text-sm font-semibold text-ink tabular-nums sm:text-base">
 						{fact.value}
 					</dd>
-					{fact.hint && <dd className="text-[11px] text-slate-500">{fact.hint}</dd>}
+					{fact.hint && (
+						<dd className="hidden text-[11px] text-slate-500 sm:block">{fact.hint}</dd>
+					)}
 				</div>
 			))}
 		</dl>
@@ -142,7 +147,7 @@ export function DiagramFrame({
 					'h-[calc(100dvh-1rem)] sm:h-[calc(100dvh-1.5rem)] lg:h-auto [&_svg]:touch-none',
 			)}
 		>
-			{over && <div className="px-3 pt-3">{over}</div>}
+			{over && <div className="px-2.5 pt-2.5 sm:px-3 sm:pt-3">{over}</div>}
 			{/* on a phone the diagram keeps its own height, whatever is below it */}
 			<div
 				className={
