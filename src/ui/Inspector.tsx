@@ -75,7 +75,11 @@ export function Inspector({ componentId }: { componentId: string }) {
 						<Row label="Getting">{formatRps(state.load)}</Row>
 						<Row label="Can handle">{formatRps(state.capacity)}</Row>
 						<Row label="Time to answer">{down ? '–' : formatMs(state.latencyMs)}</Row>
-						<Row label="Failing">{formatShare(state.failRate)}</Row>
+						{state.backlog > 0 ? (
+							<Row label="Piling up">{formatRps(state.backlog)}</Row>
+						) : (
+							<Row label="Failing">{formatShare(state.failRate)}</Row>
+						)}
 						{state.load > state.demand * 1.01 && (
 							<Row label="From retries">{formatRps(state.load - state.demand)}</Row>
 						)}

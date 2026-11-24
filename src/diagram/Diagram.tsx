@@ -31,7 +31,7 @@ import {
 } from './geometry';
 import { iconPaths } from './icons';
 import { FAILED, labelText, toneColour } from './labels';
-import { edgeTraffic, layoutSystem, LOT_SIZE, pathLength, type Vec2 } from './layout';
+import { edgeTraffic, LANE_OFFSET, layoutSystem, LOT_SIZE, pathLength, type Vec2 } from './layout';
 
 /**
  * A system drawn as an isometric diagram: a row (tier) per layer, a block per
@@ -205,7 +205,12 @@ export function Diagram({
 
 	const { minX, maxX, minZ, maxZ } = layout.bounds;
 	// the row names line up in one column, left of every row, where no arrow goes
-	const namesAt = Math.min(...layout.rows.map((row) => row.left)) - 0.95;
+	const namesAt =
+		Math.min(
+			...layout.rows.map((row) => row.left),
+			// an arrow round the outside of the parts: the names go left of it
+			...layout.edges.flatMap((e) => e.road.map(([x]) => x - LANE_OFFSET)),
+		) - 0.95;
 	const tiers = layout.rows.map((row) => {
 		const count = system.components.filter((c) => c.layer === row.layer).length;
 		const at = project(namesAt, row.z);
@@ -548,39 +553,6 @@ export function Diagram({
 							{text}
 						</text>
 					))}
-				{!bare &&
-					regions.map((region) => {
-						// a name tag on the box's top edge, on a solid background so nothing crosses it
-						const [x, y] = project(regionLeft + 0.5, region.top);
-						// monospace characters, plus the letter spacing
-						const width = region.name.length * (0.52 * CHAR + 0.04) + 0.7;
-						return (
-							<g key={region.id} pointerEvents="none">
-								<rect
-									x={x}
-									y={y - 0.42}
-									width={width}
-									height="0.84"
-									rx="0.42"
-									fill="#ffffff"
-									stroke={region.colour}
-									strokeWidth="1.2"
-									vectorEffect="non-scaling-stroke"
-								/>
-								<text
-									x={x + 0.35}
-									y={y + 0.17}
-									fontSize="0.52"
-									fontWeight="700"
-									letterSpacing="0.04"
-									fill={region.colour}
-									className="font-mono"
-								>
-									{region.name}
-								</text>
-							</g>
-						);
-					})}
 
 				{/* a ring on the ground round the selected part */}
 				{parts
@@ -730,6 +702,42 @@ export function Diagram({
 						</g>
 					);
 				})}
+
+				{/* the region boxes' name tags, over any arrow that passes */}
+				{!bare &&
+					regions.map((region) => {
+						// a name tag on the box's top edge, on a solid background, drawn over the
+						// arrows so none crosses it
+						const [x, y] = project(regionLeft + 0.5, region.top);
+						// monospace characters, plus the letter spacing
+						const width = region.name.length * (0.52 * CHAR + 0.04) + 0.7;
+						return (
+							<g key={region.id} pointerEvents="none">
+								<rect
+									x={x}
+									y={y - 0.42}
+									width={width}
+									height="0.84"
+									rx="0.42"
+									fill="#ffffff"
+									stroke={region.colour}
+									strokeWidth="1.2"
+									vectorEffect="non-scaling-stroke"
+								/>
+								<text
+									x={x + 0.35}
+									y={y + 0.17}
+									fontSize="0.52"
+									fontWeight="700"
+									letterSpacing="0.04"
+									fill={region.colour}
+									className="font-mono"
+								>
+									{region.name}
+								</text>
+							</g>
+						);
+					})}
 
 				{/* labels on top of everything, and they're the buttons the keyboard reaches */}
 				{labels.map((label) => (

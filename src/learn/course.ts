@@ -18,11 +18,17 @@ export type FactSpec =
 	| 'wait'
 	| 'succeed'
 	| 'rate'
+	/** Requests that worked without an optional part (graceful degradation). */
+	| 'degraded'
 	| { busy: string }
 	| { copies: string }
 	| { load: string }
 	/** The requests each copy of a part gets: its load shared out. */
 	| { each: string }
+	/** Work arriving faster than a part can do it, waiting in its queue. */
+	| { backlog: string }
+	/** The extra calls a part gets because callers try again. */
+	| { retries: string }
 	/** Another journey's wait or success, beside this one's. */
 	| { wait: string; label: string }
 	| { succeed: string; label: string }
@@ -108,6 +114,17 @@ function factsFor(
 					]
 				: [];
 		}
+		if (spec === 'degraded') {
+			return journey
+				? [
+						{
+							label: 'Without the extras',
+							value: formatShare(journey.degraded),
+							hint: 'worked, minus an optional part',
+						},
+					]
+				: [];
+		}
 		if ('busy' in spec) {
 			const state = result.components[spec.busy];
 			if (!state) return [];
@@ -156,6 +173,30 @@ function factsFor(
 							hint: feelOfShare(state.success),
 						},
 					];
+		}
+		if ('retries' in spec) {
+			const state = result.components[spec.retries];
+			const extra = state ? Math.max(0, state.load - state.demand) : 0;
+			return [
+				{
+					label: `Extra calls from retries`,
+					value: formatRps(extra),
+					hint: extra > 0 ? perMinute(extra) : 'none',
+				},
+			];
+		}
+		if ('backlog' in spec) {
+			const state = result.components[spec.backlog];
+			const extra = state?.backlog ?? 0;
+			return [
+				extra > 0
+					? {
+							label: 'Piling up in the queue',
+							value: `+${formatRps(extra)}`,
+							hint: perMinute(extra).replace(' every', ' more every'),
+						}
+					: { label: 'Piling up in the queue', value: '0', hint: 'keeping up' },
+			];
 		}
 		if ('each' in spec) {
 			const state = result.components[spec.each];

@@ -668,6 +668,166 @@ export const glossary: Term[] = [
 		forms: ['split brain'],
 	},
 	{
+		id: 'rest',
+		term: 'REST API',
+		meaning:
+			'A way for apps to ask a server for things: every thing has its own web address, like /orders/5521, and you GET, POST, PUT or DELETE it.',
+		forms: ['rest api', 'rest apis'],
+	},
+	{
+		id: 'graphql',
+		term: 'GraphQL',
+		meaning:
+			'A way for an app to ask for exactly the data a screen needs, from many places, in one request.',
+		like: 'Handing a waiter your whole order at once, instead of going to the counter for each dish.',
+		forms: ['graphql'],
+	},
+	{
+		id: 'rpc',
+		term: 'RPC',
+		meaning:
+			'Remote procedure call: one service calls a function in another as if it were its own. gRPC is a popular, fast kind.',
+		forms: ['rpc', 'grpc'],
+	},
+	{
+		id: 'json',
+		term: 'JSON',
+		meaning:
+			'A plain-text way to write data, with names and values, like { "id": 5521 }. Most web APIs send it.',
+		forms: ['json'],
+	},
+	{
+		id: 'subscribe',
+		term: 'Subscribe',
+		meaning:
+			'To ask to hear about every event of a kind, like every order placed. Each subscriber gets its own copy.',
+		like: 'Signing up for a newsletter: everyone on the list gets every issue.',
+		forms: ['subscribe', 'subscribes', 'subscribed', 'subscriber', 'subscribers'],
+	},
+	{
+		id: 'at-least-once',
+		term: 'At least once',
+		meaning:
+			'A promise that every message is delivered, but maybe more than once. So whoever handles it must cope with repeats.',
+		forms: ['at least once'],
+	},
+	{
+		id: 'dead-letter-queue',
+		term: 'Dead-letter queue',
+		meaning:
+			'Where messages that keep failing are moved after a few tries, so they stop blocking the rest and a person can look at them.',
+		like: 'The post office’s pile of letters it can’t deliver.',
+		forms: ['dead-letter queue', 'dead-letter queues'],
+	},
+	{
+		id: 'server-sent-events',
+		term: 'Server-sent events',
+		meaning:
+			'A connection a browser keeps open so the server can send it updates. Simpler than a WebSocket, but it only goes one way.',
+		forms: ['server-sent events'],
+	},
+	{
+		id: 'long-polling',
+		term: 'Long polling',
+		meaning:
+			'Asking a server for news, and the server holding the answer until there is some, then asking again.',
+		forms: ['long polling'],
+	},
+	{
+		id: 'push-notification',
+		term: 'Push notification',
+		meaning:
+			'A message that reaches a phone even when the app is closed, sent through Apple or Google.',
+		forms: ['push notification', 'push notifications'],
+	},
+	{
+		id: 'single-point-of-failure',
+		term: 'Single point of failure',
+		meaning: 'A part there’s only one of, so if it breaks, everything that needs it stops.',
+		like: 'The one bridge into a town.',
+		forms: ['single point of failure', 'single points of failure'],
+	},
+	{
+		id: 'zone',
+		term: 'Zone',
+		meaning:
+			'A data centre, or a group of them, with its own power and network, a few kilometres from the others. Copies spread over zones survive one of them going down.',
+		forms: ['zone', 'zones'],
+	},
+	{
+		id: 'backoff',
+		term: 'Backoff',
+		meaning:
+			'Waiting before trying again, a little longer after each failure, so a struggling part gets room to recover.',
+		like: 'Knocking again after a minute, then after five, instead of hammering on the door.',
+		forms: ['backoff', 'back off'],
+	},
+	{
+		id: 'jitter',
+		term: 'Jitter',
+		meaning:
+			'A small random extra added to a wait, so that many callers don’t all try again at the very same moment.',
+		forms: ['jitter'],
+	},
+	{
+		id: 'retry-storm',
+		term: 'Retry storm',
+		meaning:
+			'When a part is too busy, its callers retry, which makes it busier, so more calls fail and are retried again.',
+		forms: ['retry storm', 'retry storms'],
+	},
+	{
+		id: 'cascading-failure',
+		term: 'Cascading failure',
+		meaning:
+			'One part’s failure making the parts that depend on it fail too, and so on, until much of the system is down.',
+		like: 'Dominoes falling.',
+		forms: ['cascading failure', 'cascading failures'],
+	},
+	{
+		id: 'load-shedding',
+		term: 'Load shedding',
+		meaning:
+			'Turning away or switching off the least important work on purpose, so the most important keeps working under too much load.',
+		like: 'A power company cutting some areas for an hour so the whole grid doesn’t go down.',
+		forms: ['load shedding'],
+	},
+	{
+		id: 'rate-limit',
+		term: 'Rate limit',
+		meaning:
+			'The most requests one user may make in a time, like 20 a second. Past it, requests are turned away at once.',
+		forms: ['rate limit', 'rate limits', 'rate limiting'],
+	},
+	{
+		id: 'metrics',
+		term: 'Metrics',
+		meaning:
+			'Numbers measured every few seconds, like requests a second, failures and wait, kept so they can be drawn as graphs over time.',
+		forms: ['metric', 'metrics'],
+	},
+	{
+		id: 'trace',
+		term: 'Trace',
+		meaning:
+			'The path of one request through every part it visits, with how long each step took.',
+		forms: ['trace', 'traces'],
+	},
+	{
+		id: 'slo',
+		term: 'SLO',
+		meaning:
+			'Service level objective: a target for how well the app works, like 99.9% of pages working in under 300 ms.',
+		forms: ['slo', 'slos'],
+	},
+	{
+		id: 'error-budget',
+		term: 'Error budget',
+		meaning:
+			'How much failure the target allows, like 0.1% of requests. While some is left, the team can take risks; once it’s used up, it slows down.',
+		forms: ['error budget', 'error budgets'],
+	},
+	{
 		id: 'stateless',
 		term: 'Stateless',
 		meaning:

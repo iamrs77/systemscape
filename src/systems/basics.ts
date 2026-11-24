@@ -42,6 +42,21 @@ const forLessons = Object.fromEntries(
 		'order-ids',
 		'price-later',
 		'price-wait',
+		'order-rest',
+		'order-graphql',
+		'order-direct',
+		'order-event',
+		'parcel-poll',
+		'parcel-connect',
+		'parcel-push',
+		'pay-poll',
+		'pay-webhook',
+		'pay-card',
+		'look-recs',
+		'look-recs-opt',
+		'look-gw',
+		'scrape',
+		'scrape-limited',
 	].map((id) => [id, 0]),
 );
 
@@ -2030,6 +2045,814 @@ const distributed: Track = {
 	],
 };
 
+const ordersOnly = { only: ['order'], copies: { server: 2 } };
+const publishing = { only: ['order-event'], copies: { server: 3 } };
+const telling = { only: ['order-direct'], copies: { server: 3 } };
+const polling = { only: ['parcel-poll'], copies: { server: 6 }, bigger: roomy };
+const pushing = {
+	only: ['parcel-push', 'parcel-connect'],
+	traffic: 3,
+	copies: { server: 6 },
+	bigger: roomy,
+};
+
+const communication: Track = {
+	id: 'communication',
+	name: 'Communication',
+	tagline:
+		'How the parts talk: asking for what you need, handing work over, announcing what happened, and pushing updates as they happen.',
+	lessons: [
+		{
+			id: 'apis',
+			title: 'REST, RPC and GraphQL',
+			summary: 'Three ways to ask a server for something, and where each one fits.',
+			steps: [
+				{
+					title: 'REST: things with addresses',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'order-rest',
+					current: [['app', 'lb']],
+					set: { only: ['order-rest'], copies: { server: 3 } },
+					body: [
+						'A REST API gives every thing its own address, like /orders/5521, and a few verbs to use on it: GET to read it, POST to make a new one, PUT to change it, DELETE to remove it.',
+						'It’s plain web requests and JSON text, so any app, browser or company can use it, and answers to GET can be cached, even by a CDN. Most public APIs are REST.',
+					],
+					example: {
+						says: 'GET /orders/5521',
+						data: { answer: '{ "id": 5521, "status": "packed", "delivery": 88 }' },
+					},
+				},
+				{
+					title: 'One screen, three requests',
+					show: ['app', 'lb', 'server', 'db', 'delivery'],
+					journey: 'order-rest',
+					set: { only: ['order-rest'], copies: { server: 3 } },
+					facts: ['wait'],
+					timeline: true,
+					body: [
+						'Your order screen shows the order, its items and where the delivery is. That’s three things, so three requests, and each one needs the answer before it: the order says which delivery to ask about.',
+						'On mobile data, each request takes about 150 ms just to travel there and back. Three in a row, and the screen takes half a second to fill in.',
+					],
+				},
+				{
+					title: 'GraphQL: ask for exactly what the screen needs',
+					show: ['app', 'lb', 'server', 'db', 'delivery'],
+					journey: 'order-graphql',
+					draw: ['order-rest'],
+					set: { only: ['order-graphql', 'order-rest'], copies: { server: 3 } },
+					facts: [
+						{ wait: 'order-graphql', label: 'Wait, one GraphQL request' },
+						{ wait: 'order-rest', label: 'Wait, three REST requests' },
+					],
+					body: [
+						'With GraphQL, the app sends one request that lists exactly what the screen shows. The server gathers it all from the database and the **Delivery service**, nearby in the data centre, and answers once.',
+						'One trip across the mobile network instead of three, and nothing sent that the screen doesn’t use. The cost: answers are hard to cache, and one careless query can ask for far too much.',
+					],
+					example: {
+						says: '{ order(id: 5521) { status items { name } delivery { eta } } }',
+						data: { answer: 'packed · Blue kettle · arriving 6 pm' },
+					},
+				},
+				{
+					title: 'RPC: between your own services',
+					show: ['app', 'lb', 'server', 'db', 'delivery'],
+					journey: 'order-graphql',
+					current: [['server', 'delivery']],
+					set: { only: ['order-graphql'], copies: { server: 3 } },
+					body: [
+						'Inside the data centre, the server asks the delivery service as if calling one of its own functions: GetDelivery(88). That’s RPC, a remote procedure call, often with gRPC.',
+						'Both sides share a strict description of every call, so a mistake is caught before it ships. Messages are compact, not text, so calls are fast. Browsers can’t easily use it, so RPC stays between your own services.',
+					],
+					example: {
+						says: 'GetDelivery(id: 88)',
+						data: { answer: 'out for delivery, arriving 6 pm' },
+					},
+					note: {
+						title: 'Which one where',
+						text: 'REST for public APIs and anything worth caching. GraphQL for apps with many screens that each need different data. RPC between your own services.',
+					},
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely with both designs. Follow each one, and compare where the time goes.',
+				journey: 'order-rest',
+				set: { only: ['order-graphql', 'order-rest'], copies: { server: 3 } },
+			},
+		},
+		{
+			id: 'message-queues',
+			title: 'Message queues',
+			summary:
+				'Handing work over: bursts, more workers, jobs done twice, and jobs that never work.',
+			steps: [
+				{
+					title: 'A queue between them',
+					show: ['app', 'server', 'db', 'queue', 'worker', 'email'],
+					journey: 'order',
+					current: [
+						['server', 'queue'],
+						['queue', 'worker'],
+					],
+					set: ordersOnly,
+					facts: [{ load: 'queue' }, { busy: 'worker' }],
+					body: [
+						'As in the first track, the server leaves a note in a **Queue** for each receipt, and answers you straight away. The **Email worker** takes notes from the other end and sends the emails.',
+						'Each note goes to exactly one worker. When it’s done, the worker tells the queue, and the note is removed.',
+					],
+				},
+				{
+					title: 'A rush: the queue takes the strain',
+					show: ['app', 'server', 'db', 'queue', 'worker', 'email'],
+					journey: 'order',
+					set: { ...ordersOnly, traffic: 8 },
+					facts: ['succeed', { busy: 'worker' }, { backlog: 'worker' }],
+					body: [
+						'A sale brings 80 orders a second, and the worker can send 50 emails a second. It can’t keep up, so notes pile up in the queue.',
+						'But orders still work, as fast as ever. The emails go out late, not never: when the rush ends, the worker catches up.',
+					],
+				},
+				{
+					title: 'More workers',
+					show: ['app', 'server', 'db', 'queue', 'worker', 'email'],
+					journey: 'order',
+					set: { ...ordersOnly, traffic: 8, copies: { server: 2, worker: 2 } },
+					copies: true,
+					facts: [{ busy: 'worker' }, { backlog: 'worker' }],
+					body: [
+						'Or add a second worker. Both take notes from the same queue, each note going to one of them, so together they send 100 a second and keep up.',
+						'How long the queue is says when to add workers. Many apps add them automatically when it grows.',
+					],
+				},
+				{
+					title: 'Sent twice',
+					show: ['app', 'server', 'db', 'queue', 'worker', 'email'],
+					journey: 'order',
+					set: ordersOnly,
+					tags: [{ text: 'A problem', tone: 'warn' }],
+					body: [
+						'A worker sends Riya’s receipt, then crashes before telling the queue it’s done. The queue never hears back, so after a while it hands the note to another worker, which sends the receipt again.',
+						'Queues promise each note at least once, not exactly once. So workers are made idempotent: before sending, the worker checks whether this order’s receipt has already gone, and skips it if so.',
+					],
+					example: {
+						says: 'Note: send the receipt for order 5521.',
+						data: {
+							'first worker': 'sends it, crashes before saying done',
+							'second worker': 'checks: already sent for 5521, so skips it',
+						},
+					},
+				},
+				{
+					title: 'A note that never works',
+					show: ['app', 'server', 'db', 'queue', 'worker', 'email'],
+					journey: 'order',
+					set: ordersOnly,
+					body: [
+						'One receipt has a mistyped email address, so it fails every time. Tried forever, it would come back again and again, and waste the worker’s time.',
+						'So after a few tries, the note is moved to a separate dead-letter queue, where a person can look at it. Everything else keeps flowing.',
+					],
+					example: {
+						says: 'Note: send the receipt to riya@gmial.con.',
+						data: {
+							'tries 1 to 3': 'address doesn’t exist',
+							then: 'moved to the dead-letter queue',
+						},
+					},
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely on the sale. Add workers from their details until the queue stops growing.',
+				journey: 'order',
+				set: { ...ordersOnly, traffic: 8 },
+			},
+		},
+		{
+			id: 'pub-sub',
+			title: 'Publish and subscribe',
+			summary: 'Say what happened once, and let every part that cares listen.',
+			steps: [
+				{
+					title: 'Telling everyone, one by one',
+					show: ['app', 'lb', 'server', 'db', 'stock-svc', 'reports'],
+					journey: 'order-direct',
+					current: [
+						['server', 'stock-svc'],
+						['server', 'reports'],
+					],
+					set: telling,
+					facts: ['wait'],
+					timeline: true,
+					body: [
+						'When an order is placed, other parts need to know: the **Stock service** takes a kettle off the shelf count, and the **Reports service** counts the sale.',
+						'Here, the server calls each one in turn, and waits for each. It has to know every part that cares, and you wait for all of them.',
+					],
+				},
+				{
+					title: 'One of them breaks',
+					show: ['app', 'lb', 'server', 'db', 'stock-svc', 'reports'],
+					journey: 'order-direct',
+					set: { ...telling, down: ['reports'] },
+					facts: ['succeed'],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'The reports service goes down, and now nobody can place an order, all because a sales count couldn’t be updated.',
+					],
+				},
+				{
+					title: 'Publish once',
+					show: ['app', 'lb', 'server', 'db', 'events', 'stock-svc', 'reports', 'worker'],
+					journey: 'order-event',
+					current: [['server', 'events']],
+					set: publishing,
+					facts: ['wait'],
+					tags: [{ text: 'Background: nobody waits', tone: 'background' }],
+					body: [
+						'Instead, the server publishes one event, “order placed”, to an **Event stream**, and answers you. It doesn’t know or care who listens.',
+						'The stock service, the reports service and the email worker each subscribe: each gets its own copy of every event, and reads at its own pace.',
+					],
+					example: {
+						says: 'Event: order placed.',
+						data: { order: '5521', product: 'Blue kettle ×1', at: '24 Nov, 8:02 pm' },
+					},
+				},
+				{
+					title: 'The same break, now',
+					show: ['app', 'lb', 'server', 'db', 'events', 'stock-svc', 'reports', 'worker'],
+					journey: 'order-event',
+					set: { ...publishing, down: ['reports'] },
+					facts: ['succeed'],
+					tags: [{ text: 'It keeps working', tone: 'plain' }],
+					body: [
+						'With the reports service down, orders work as before. Its events wait in the stream, and when it’s back, it carries on reading from where it stopped.',
+					],
+				},
+				{
+					title: 'A queue, or a stream',
+					show: ['app', 'lb', 'server', 'db', 'events', 'stock-svc', 'reports', 'worker'],
+					journey: 'order-event',
+					set: publishing,
+					body: [
+						'A queue hands each note to one worker, and forgets it once it’s done, like RabbitMQ or Amazon SQS. A stream keeps every event for days, and every subscriber reads all of them, like Kafka.',
+						'So a new subscriber can join tomorrow, a loyalty-points service, say, and the order code doesn’t change at all. It can even read last week’s events, to catch up.',
+					],
+				},
+				{
+					title: 'Saved, but never announced',
+					show: ['app', 'lb', 'server', 'db', 'events'],
+					journey: 'order-event',
+					current: [
+						['server', 'db'],
+						['server', 'events'],
+					],
+					set: publishing,
+					tags: [{ text: 'A problem', tone: 'warn' }],
+					body: [
+						'The server saves the order, then crashes before publishing. The order exists, but no receipt is sent, and the stock is never taken. Publish first, and a crash leaves an event for an order that doesn’t exist.',
+						'The fix is an outbox: the event is saved in the database in the same transaction as the order, and a worker publishes it from there. Stockroom works this way.',
+					],
+					example: {
+						says: 'In one transaction:',
+						data: { orders: 'order 5521', outbox: 'event: order 5521 placed' },
+					},
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely with the event stream. Take the subscribers down, one at a time, and see what still works.',
+				journey: 'order-event',
+				set: publishing,
+			},
+		},
+		{
+			id: 'real-time',
+			title: 'Real-time updates',
+			summary: 'Asking again and again, or being told the moment something changes.',
+			steps: [
+				{
+					title: 'Asking again and again',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'parcel-poll',
+					set: polling,
+					facts: ['rate', { busy: 'server' }],
+					body: [
+						'A thousand shoppers watch their parcel move on a map. Each app asks “anything new?” every 2 seconds: 500 requests a second.',
+						'But each van only moves every 10 seconds, so 4 answers in 5 are “nothing new”. Asking again and again like this is called polling.',
+					],
+				},
+				{
+					title: 'A busy evening',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'parcel-poll',
+					set: { ...polling, traffic: 3 },
+					facts: ['rate', 'succeed', { busy: 'server' }],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'In the evening, three times as many people watch. That’s 1,500 requests a second, mostly for nothing, and six web servers can’t answer them all.',
+					],
+				},
+				{
+					title: 'Keep a line open',
+					show: ['vans', 'app', 'lb', 'server', 'db', 'live'],
+					journey: 'parcel-push',
+					draw: ['parcel-connect'],
+					current: [
+						['server', 'live'],
+						['live', 'app'],
+					],
+					set: pushing,
+					facts: [{ load: 'server' }, { busy: 'server' }],
+					body: [
+						'Instead, each app opens one connection to a **Live updates server**, and keeps it open: a WebSocket. When a van sends its location, the server passes it on, and the live server pushes it down the connection of whoever is watching.',
+						'Now messages flow only when something changes. On the same busy evening, the servers handle just the vans’ updates.',
+					],
+				},
+				{
+					title: 'Other ways to push',
+					show: ['vans', 'app', 'lb', 'server', 'db', 'live'],
+					journey: 'parcel-push',
+					draw: ['parcel-connect'],
+					set: pushing,
+					note: {
+						title: 'Open connections cost too',
+						text: 'Each one holds a little memory, for as long as the app is open. And when a live server restarts, all its apps reconnect at once, so they wait a random moment first.',
+					},
+					body: [
+						'A WebSocket carries messages both ways, which suits chat and games. When only the server talks, server-sent events are simpler. Long polling asks, and the server holds the answer until there’s news.',
+						'When the app is closed, a push notification goes through Apple or Google instead, as in the ride-hailing app. And for something checked once a minute, plain polling is fine.',
+					],
+				},
+				{
+					title: 'Is it paid yet?',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-poll',
+					set: { only: ['pay-poll'], copies: { server: 3 } },
+					facts: [{ load: 'payments' }],
+					body: [
+						'Companies poll each other too. While shoppers pay, the shop asks the **Payment provider** every couple of seconds whether each payment has gone through: 50 questions a second, nearly all answered “not yet”.',
+					],
+				},
+				{
+					title: 'Tell me when it’s done: webhooks',
+					show: ['app', 'lb', 'server', 'db', 'payments'],
+					journey: 'pay-webhook',
+					current: [['payments', 'lb']],
+					set: { only: ['pay-webhook'], copies: { server: 3 } },
+					facts: [{ load: 'server' }],
+					body: [
+						'Instead, the shop gives the provider an address of its own. When a payment goes through, the provider calls it, once. That’s a webhook: the call goes the other way.',
+						'Webhooks can arrive twice, late, or never, so the shop handles repeats, and still checks now and then for any it missed.',
+					],
+					example: {
+						says: 'POST shop.example.com/webhooks/payments',
+						data: { event: 'payment succeeded', order: '5521', amount: '₹1,499' },
+					},
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely with the live updates. Push the traffic up and down, and compare it with polling.',
+				journey: 'parcel-push',
+				set: pushing,
+			},
+		},
+	],
+};
+
+const oneOfEach = { only: ['look-lb'], bigger: roomy };
+const paying = { only: ['pay-card'], copies: { server: 3 } };
+const suggesting = { only: ['look-recs'], copies: { server: 3 } };
+const suggestingIfAble = { only: ['look-recs-opt'], copies: { server: 3 }, down: ['recs'] };
+const flooded = { only: ['look-gw', 'scrape'], copies: { server: 3 }, bigger: roomy };
+const limited = { only: ['look-gw', 'scrape-limited'], copies: { server: 3 }, bigger: roomy };
+const watching = { only: ['look-lb'], copies: { server: 3 } };
+
+const reliability: Track = {
+	id: 'reliability',
+	name: 'Reliability',
+	tagline:
+		'Spares, timeouts and retries, failing gracefully, limits, and seeing what’s going on: keeping the shop up when things go wrong.',
+	lessons: [
+		{
+			id: 'redundancy',
+			title: 'Redundancy and failover',
+			summary:
+				'More than one of everything, in more than one place, and something ready to take over.',
+			steps: [
+				{
+					title: 'One of each',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: oneOfEach,
+					facts: ['succeed'],
+					body: [
+						'Here, the shop runs one load balancer, one web server and one database. It works. But each of them is a single point of failure: if any one breaks, nobody can shop.',
+					],
+				},
+				{
+					title: 'The server breaks',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...oneOfEach, down: ['server'] },
+					facts: ['succeed'],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'A disk fails, or an update goes wrong, and the web server stops. With nothing to take over, every page fails.',
+					],
+				},
+				{
+					title: 'Spares, in two places',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...oneOfEach, traffic: 3, copies: { server: 4 } },
+					copies: true,
+					facts: ['succeed', { busy: 'server' }, { copies: 'server' }],
+					body: [
+						'Run spares instead: four copies, two in each of two data centres, called zones. Zones are a few kilometres apart, with their own power and network.',
+						'Parts break one at a time, and sometimes a whole zone does, in a fire, a flood or a cut cable.',
+					],
+				},
+				{
+					title: 'A zone goes down',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...oneOfEach, traffic: 3, copies: { server: 2 } },
+					copies: true,
+					facts: ['succeed', { busy: 'server' }, { copies: 'server' }],
+					body: [
+						'When a zone goes down, its two copies go with it. The other two take everything: busier, but every page still works.',
+						'So each zone needs enough copies to carry the whole load alone.',
+					],
+				},
+				{
+					title: 'Not enough spares',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...oneOfEach, traffic: 3, copies: { server: 1 } },
+					copies: true,
+					facts: ['succeed', { busy: 'server' }, { copies: 'server' }],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'Run three copies instead, two in one zone and one in the other, and lose the bigger zone. One copy is left for everything, and a third of the shoppers get errors.',
+						'Spares only help if there are enough of them, in the right places.',
+					],
+				},
+				{
+					title: 'Failover: taking over',
+					show: ['app', 'lb', 'server', 'db', 'replica'],
+					journey: 'order-promoted',
+					set: {
+						only: ['order-promoted'],
+						traffic: 3,
+						copies: { server: 3 },
+						down: ['db'],
+					},
+					facts: ['succeed'],
+					body: [
+						'Some parts can’t simply run side by side, like the leader database. They keep a standby, a follower, that takes over when the leader breaks. That’s failover, and the few seconds it takes still fail.',
+						'Copies that all serve at once are called active-active. A standby that waits is active-passive: simpler, but it has to work the one time it’s needed.',
+					],
+				},
+				{
+					title: 'Break things on purpose',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...oneOfEach, traffic: 3, copies: { server: 4 } },
+					copies: true,
+					body: [
+						'A spare you’ve never used may not work. So teams switch parts off on purpose, at a calm moment, to check that the spares really take over.',
+						'Netflix built a tool for it, Chaos Monkey, that switches off its servers at random, every working day.',
+					],
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely with four copies. Take copies away from the web server’s details, as if a zone went down, and find how few the shop can run on.',
+				journey: 'look-lb',
+				set: { ...oneOfEach, traffic: 3, copies: { server: 4 } },
+			},
+		},
+		{
+			id: 'timeouts-retries',
+			title: 'Timeouts and retries',
+			summary:
+				'How long to wait, when to try again, and how trying again can make things worse.',
+			steps: [
+				{
+					title: 'How long to wait',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-card',
+					set: { ...paying, retries: false },
+					facts: ['wait'],
+					timeline: true,
+					body: [
+						'Paying sends a request to the **Payment provider**, which normally answers in about 40 ms. But how long should the server wait if it doesn’t?',
+						'It waits up to a set time, a timeout, then gives up. Too long, and people stare at a spinner while requests pile up. Too short, and it gives up on answers that were on their way. A little above the slowest normal answer is about right.',
+					],
+				},
+				{
+					title: 'A shaky connection',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-card',
+					set: { ...paying, retries: false, flaky: { payments: 0.05 } },
+					facts: ['succeed'],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'Now 1 call in 20 fails for no lasting reason: a dropped connection, a busy moment. With no second try, 1 payment in 20 fails.',
+					],
+				},
+				{
+					title: 'Try again',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-card',
+					set: { ...paying, retries: true, flaky: { payments: 0.05 } },
+					facts: ['succeed', { retries: 'payments' }],
+					body: [
+						'Try again, up to twice, and a payment fails only if all three tries do: about 1 in 8,000. It costs little, because few calls fail.',
+					],
+				},
+				{
+					title: 'A sale, without retries',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-card',
+					set: { ...paying, retries: false, traffic: 2.4 },
+					facts: ['succeed', { busy: 'payments' }],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'A sale brings 120 payments a second, and the provider can take 100. Without retries, 1 payment in 6 fails.',
+					],
+				},
+				{
+					title: 'A retry storm',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-card',
+					set: { ...paying, retries: true, traffic: 2.4 },
+					facts: ['succeed', 'wait', { retries: 'payments' }],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'With retries, every failed call comes back, twice. The provider now gets 222 calls a second for the same 120 payments, so most calls fail, and those come back too.',
+						'It still finishes only 100 a second, so no more payments go through than without retries, and each one takes far longer. That’s a retry storm: when a part fails because it’s too busy, retries only pile more on.',
+					],
+				},
+				{
+					title: 'Wait, then try',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-card',
+					set: { ...paying, retries: true, traffic: 2.4 },
+					body: [
+						'So retries wait first, longer each time, plus a random bit, so that thousands of callers don’t all come back in the same instant. That’s called backoff, with jitter.',
+						'Callers also stop retrying when most calls fail, and only one layer retries, not every layer on the way. A circuit breaker stops calling altogether for a while.',
+					],
+					example: {
+						says: 'When each try happens.',
+						data: {
+							'try 1': 'now',
+							'try 2': 'after 0.2 s, plus a random bit',
+							'try 3': 'after 0.4 s, plus a random bit',
+						},
+					},
+				},
+				{
+					title: 'Charged twice?',
+					show: ['app', 'lb', 'server', 'payments'],
+					journey: 'pay-card',
+					set: { ...paying, retries: true },
+					tags: [{ text: 'A problem', tone: 'warn' }],
+					body: [
+						'A charge goes through, but the answer is lost on the way back. The server tries again, and the card is charged twice.',
+						'So each payment carries an idempotency key, an id made once for this payment. A retry sends the same key, and the provider answers “already done” instead of charging again.',
+					],
+					example: {
+						says: 'Charge ₹1,499, key pay-5521-7f3a.',
+						data: {
+							'first try': 'charged, but the answer was lost',
+							'second try, same key': 'already charged: no new charge',
+						},
+					},
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely during the sale, with retries on. Turn retries off and on, and watch the payment provider.',
+				journey: 'pay-card',
+				set: { ...paying, retries: true, traffic: 2.4 },
+			},
+		},
+		{
+			id: 'failing-gracefully',
+			title: 'Failing gracefully',
+			summary: 'When a part breaks, show what you can, and stop waiting for it.',
+			steps: [
+				{
+					title: 'A page with suggestions',
+					show: ['app', 'lb', 'server', 'db', 'recs'],
+					journey: 'look-recs',
+					set: suggesting,
+					facts: ['wait'],
+					timeline: true,
+					body: [
+						'Each product page also shows similar products, from the **Recommendations** service. Nice to have, but not what the shopper came for.',
+					],
+				},
+				{
+					title: 'Suggestions break, and so does the page',
+					show: ['app', 'lb', 'server', 'db', 'recs'],
+					journey: 'look-recs',
+					set: { ...suggesting, down: ['recs'] },
+					facts: ['succeed', 'wait'],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'When it goes down, the server waits 2 seconds for suggestions, gives up, and fails the whole page. A broken extra has taken down the main thing.',
+						'In a bigger system, this is how one failure spreads, part to part, until everything is down: a cascading failure.',
+					],
+				},
+				{
+					title: 'Show the page without them',
+					show: ['app', 'lb', 'server', 'db', 'recs'],
+					journey: 'look-recs-opt',
+					set: suggestingIfAble,
+					facts: ['succeed', 'degraded', 'wait'],
+					body: [
+						'Make the suggestions optional: if they don’t come, show the page without them. That’s graceful degradation. Every page works again.',
+						'But each one still waits 2 seconds before giving up on the suggestions.',
+					],
+				},
+				{
+					title: 'Stop asking for a while',
+					show: ['app', 'lb', 'server', 'db', 'recs'],
+					journey: 'look-recs-opt',
+					set: { ...suggestingIfAble, circuitBreakers: true },
+					facts: ['succeed', 'wait'],
+					body: [
+						'A circuit breaker notices that calls to recommendations keep failing, and stops making them for a while. Pages skip the suggestions at once, instead of waiting.',
+						'Every so often it lets one call through, to see if they’re back.',
+					],
+				},
+				{
+					title: 'Drop the extras on purpose',
+					show: ['app', 'lb', 'server', 'db', 'recs'],
+					journey: 'look-recs-opt',
+					set: { ...suggestingIfAble, circuitBreakers: true },
+					body: [
+						'In a big rush, the same idea works on purpose: switch off the extras, like suggestions and reviews, so the servers spend their time on what matters most, like checkout.',
+						'That’s called load shedding. Deciding ahead of time what can be dropped, and in what order, is part of designing any app.',
+					],
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely with recommendations down. Turn circuit breakers on and off, and watch the wait.',
+				journey: 'look-recs-opt',
+				set: suggestingIfAble,
+			},
+		},
+		{
+			id: 'rate-limiting',
+			title: 'Rate limiting',
+			summary: 'Limit how often each user can ask, so no one user can take the shop down.',
+			steps: [
+				{
+					title: 'A bot arrives',
+					show: ['app', 'bot', 'lb', 'gateway', 'server', 'db'],
+					journey: 'look-gw',
+					draw: ['scrape'],
+					set: flooded,
+					facts: [
+						{ succeed: 'look-gw', label: 'Shoppers’ pages that work' },
+						{ busy: 'server' },
+					],
+					tags: [{ text: 'Something breaks', tone: 'warn' }],
+					body: [
+						'Someone points a **Scraper bot** at the shop, to copy every product and price. It asks 400 times a second, far more than all 150 shoppers together.',
+						'The servers fill up, and real shoppers’ pages fail.',
+					],
+				},
+				{
+					title: 'A limit for each user',
+					show: ['app', 'bot', 'lb', 'gateway', 'server', 'db'],
+					journey: 'look-gw',
+					draw: ['scrape-limited'],
+					current: [['gateway', 'server']],
+					set: limited,
+					facts: [
+						{ succeed: 'look-gw', label: 'Shoppers’ pages that work' },
+						{ busy: 'server' },
+					],
+					body: [
+						'The **API gateway** counts each user’s requests. Up to 20 a second is fine. Past that, it answers “429: too many requests” at once, without bothering the servers.',
+						'The bot gets its 20 a second, and the other 380 are turned away at the door. Shoppers never come near the limit.',
+					],
+					example: {
+						says: 'The bot’s 21st request this second.',
+						data: {
+							limit: '20 a second for each user',
+							answer: '429 Too many requests. Try again in 1 second.',
+						},
+					},
+				},
+				{
+					title: 'How it counts',
+					show: ['app', 'bot', 'lb', 'gateway', 'server', 'db'],
+					journey: 'look-gw',
+					draw: ['scrape-limited'],
+					set: limited,
+					body: [
+						'A common way is a bucket of tokens for each user. Each request takes a token, and tokens drip back in, 20 a second. A short burst is fine, as long as the bucket isn’t empty.',
+						'The counts live in a fast shared store, like Redis, so every copy of the gateway sees the same numbers.',
+					],
+				},
+				{
+					title: 'Limits everywhere',
+					show: ['app', 'bot', 'lb', 'gateway', 'server', 'db'],
+					journey: 'look-gw',
+					draw: ['scrape-limited'],
+					set: limited,
+					body: [
+						'Limits also protect the shop from its own mistakes: an app update that asks in a loop, or a partner who retries too fast.',
+						'And the companies the shop calls have limits of their own. If the payment provider allows 100 calls a second, the shop has to stay under it, or its own payments start failing.',
+					],
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely with the bot and no limit. Add copies of the web server, and see how many it takes to keep up, compared with one limit.',
+				journey: 'look-gw',
+				set: flooded,
+			},
+		},
+		{
+			id: 'observability',
+			title: 'Observability',
+			summary: 'Seeing what’s going on inside: metrics, traces, logs and alerts.',
+			steps: [
+				{
+					title: 'Three numbers for every part',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: watching,
+					facts: ['rate', 'succeed', 'wait'],
+					body: [
+						'You can’t fix what you can’t see. For every service, three numbers matter most: how many requests arrive, how many fail, and how long they take. Measured every few seconds and drawn as graphs, they’re called metrics.',
+						'The numbers above the diagram, in every lesson here, are metrics.',
+					],
+				},
+				{
+					title: 'Something’s slow',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...watching, traffic: 2.9 },
+					facts: ['rate', 'succeed', 'wait'],
+					tags: [{ text: 'Slow', tone: 'wait' }],
+					body: [
+						'One evening, pages take far longer. Every page still works, so nothing is broken, but shoppers notice. The metrics say something is wrong, but not where.',
+					],
+				},
+				{
+					title: 'A trace: where the time went',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...watching, traffic: 2.9 },
+					facts: ['wait'],
+					timeline: true,
+					body: [
+						'A trace follows one request through every part it visits, and times each step, like the list beside the diagram. Here, the database takes most of the time. That’s the one to fix.',
+						'Each request is given an id when it arrives, and every part passes it along, so the steps can be put back together.',
+					],
+				},
+				{
+					title: 'Logs: what happened, in words',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...watching, traffic: 2.9 },
+					body: [
+						'Each part also writes a line for anything worth knowing: an error, a slow query, a payment refused. These are its logs.',
+						'Each line carries the request’s id, so you can find every line about one shopper’s slow page, from every part it passed through.',
+					],
+					example: {
+						says: 'Three lines about one request, from two parts.',
+						data: {
+							'20:02:01.120 web': 'req 7f3a: GET /products/77',
+							'20:02:01.410 db': 'req 7f3a: slow query, 280 ms',
+							'20:02:01.415 web': 'req 7f3a: answered in 295 ms',
+						},
+					},
+				},
+				{
+					title: 'Wake someone when shoppers suffer',
+					show: ['app', 'lb', 'server', 'db'],
+					journey: 'look-lb',
+					set: { ...watching, traffic: 2.9 },
+					facts: [
+						{ label: 'Target', value: '99.9%', hint: 'of pages work, in under 300 ms' },
+						'wait',
+					],
+					body: [
+						'Nobody watches graphs all night. The best warnings go off when shoppers feel something, not when a machine is busy: say, fewer than 99.9% of pages working in under 300 ms. Tonight’s pages are slower than that, so the warning goes off, and someone is woken up.',
+						'That promise is called an SLO. The 0.1% left over is the error budget: about 43 minutes a month when things may go wrong. Use it up, and the team slows down new changes until things are steady again.',
+					],
+				},
+			],
+			tryIt: {
+				text: 'Open Explore freely on the slow evening. Follow the journey, find the slow step, and fix it.',
+				journey: 'look-lb',
+				set: { ...watching, traffic: 2.9 },
+			},
+		},
+	],
+};
+
 export const basics: SystemInput = {
 	id: 'basics',
 	name: 'The basics',
@@ -2340,6 +3163,131 @@ export const basics: SystemInput = {
 			capacityPerInstance: 500,
 			instances: 1,
 			latencyMs: 35,
+		},
+		{
+			id: 'live',
+			name: 'Live updates server',
+			kind: 'gateway',
+			layer: 'edge',
+			summary:
+				'Keeps a connection open to every app that’s watching, and pushes each update down the right one as soon as it happens.',
+			why: 'So apps hear about a change the moment it happens, without asking again and again.',
+			onFailure:
+				'Apps stop getting updates. They reconnect to another copy, or fall back to asking every few seconds.',
+			scaling:
+				'Each copy holds tens of thousands of open connections. Add copies for more watchers.',
+			capacityPerInstance: 2_000,
+			instances: 1,
+			latencyMs: 5,
+		},
+		{
+			id: 'delivery',
+			name: 'Delivery service',
+			kind: 'service',
+			layer: 'services',
+			summary: 'Knows where every parcel is, and when it should arrive.',
+			why: 'Deliveries are their own job, run by their own team, so they’re their own service.',
+			onFailure: 'Orders show without their delivery status.',
+			scaling: 'Run more copies; it keeps nothing between requests.',
+			capacityPerInstance: 300,
+			instances: 1,
+			latencyMs: 10,
+		},
+		{
+			id: 'stock-svc',
+			name: 'Stock service',
+			kind: 'service',
+			layer: 'services',
+			summary: 'Keeps the stock levels, and reorders products that run low.',
+			why: 'Every sale changes the stock, so it needs to hear about every order.',
+			onFailure: 'Stock levels stop updating until it’s back.',
+			scaling: 'Run more copies.',
+			capacityPerInstance: 200,
+			instances: 1,
+			latencyMs: 8,
+		},
+		{
+			id: 'reports',
+			name: 'Reports service',
+			kind: 'service',
+			layer: 'services',
+			summary: 'Counts every sale, for the shop’s daily sales reports.',
+			why: 'The shop wants to know what sells, and when.',
+			onFailure: 'The reports fall behind until it’s back.',
+			scaling: 'Run more copies.',
+			capacityPerInstance: 200,
+			instances: 1,
+			latencyMs: 20,
+		},
+		{
+			id: 'events',
+			name: 'Event stream',
+			kind: 'stream',
+			layer: 'async',
+			summary:
+				'A log of everything that happens, like “order placed”. Every part that cares reads it, each at its own pace. Like Kafka.',
+			why: 'The server says what happened once, and doesn’t need to know who listens.',
+			onFailure:
+				'Nothing new can be published, so the parts that listen stop hearing about orders.',
+			scaling:
+				'It’s split into partitions spread over machines, so it can take millions of events a second.',
+			capacityPerInstance: 5_000,
+			instances: 1,
+			latencyMs: 2,
+		},
+		{
+			id: 'payments',
+			name: 'Payment provider',
+			kind: 'external',
+			layer: 'external',
+			summary:
+				'Another company that takes card payments for the shop, like Razorpay or Stripe.',
+			why: 'Taking card payments safely is a whole business of its own.',
+			onFailure: 'Nobody can pay by card until it’s back.',
+			scaling: 'It belongs to another company, so we can’t make it bigger.',
+			capacityPerInstance: 100,
+			instances: 1,
+			latencyMs: 40,
+		},
+		{
+			id: 'bot',
+			name: 'Scraper bot',
+			kind: 'client',
+			layer: 'clients',
+			summary:
+				'Someone else’s program that copies every product and price from the shop, as fast as it can.',
+			why: 'Competitors watch prices, and some programs are just badly written.',
+			onFailure: 'It stands for the bot, so the simulation doesn’t make it fail.',
+			scaling: 'It runs on someone else’s computers.',
+		},
+		{
+			id: 'gateway',
+			name: 'API gateway',
+			kind: 'gateway',
+			layer: 'edge',
+			summary:
+				'Checks every request before it reaches the servers: who’s asking, and whether they’ve asked too often.',
+			why: 'One place to limit how often each user can ask, so no one user can swamp the servers.',
+			onFailure: 'Nothing gets through to the servers.',
+			scaling:
+				'Run more copies. The counts it keeps live in a fast shared store, so every copy agrees.',
+			capacityPerInstance: 10_000,
+			instances: 1,
+			latencyMs: 2,
+		},
+		{
+			id: 'recs',
+			name: 'Recommendations',
+			kind: 'service',
+			layer: 'services',
+			summary: 'Suggests similar products for each product page.',
+			why: 'Suggestions help people find more to buy. But a page is still useful without them.',
+			onFailure:
+				'Pages show without suggestions, if the design allows it. If not, they fail.',
+			scaling: 'Run more copies.',
+			capacityPerInstance: 200,
+			instances: 1,
+			latencyMs: 30,
 		},
 		{
 			id: 'email',
@@ -2781,6 +3729,242 @@ export const basics: SystemInput = {
 				{ from: 'db', to: 'far', label: 'Copy it to Delhi, and wait' },
 			],
 		},
+		{
+			id: 'order-rest',
+			name: 'See an order, in three REST requests',
+			description:
+				'Someone opens an order. The app asks for the order, then its items, then its delivery: three requests, one after another, each crossing the mobile network.',
+			rps: 20,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'GET /orders/5521', travelMs: 150 },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Read the order' },
+				{ from: 'app', to: 'lb', label: 'GET /orders/5521/items', travelMs: 150 },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Read its items' },
+				{ from: 'app', to: 'lb', label: 'GET /deliveries/88', travelMs: 150 },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'delivery', label: 'Where is delivery 88?' },
+			],
+		},
+		{
+			id: 'order-graphql',
+			name: 'See an order, in one GraphQL request',
+			description:
+				'Someone opens an order. The app asks for everything the screen shows in one request, and the server gathers it.',
+			rps: 20,
+			hops: [
+				{
+					from: 'app',
+					to: 'lb',
+					label: 'One query: the order, its items, its delivery',
+					travelMs: 150,
+				},
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Read the order and its items' },
+				{ from: 'server', to: 'delivery', label: 'Where is delivery 88? (RPC)' },
+			],
+		},
+		{
+			id: 'order-direct',
+			name: 'Place an order, telling everyone',
+			description:
+				'Someone places an order. The server saves it, then calls each part that needs to know, and waits for each.',
+			rps: 10,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Place the order' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Save the order' },
+				{ from: 'server', to: 'stock-svc', label: 'Tell stock: one kettle sold' },
+				{ from: 'server', to: 'reports', label: 'Tell reports: one sale' },
+			],
+		},
+		{
+			id: 'order-event',
+			name: 'Place an order, publishing an event',
+			description:
+				'Someone places an order. The server saves it and publishes one event, “order placed”. Every part that cares reads it from the event stream, in its own time.',
+			rps: 10,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Place the order' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Save the order' },
+				{ from: 'server', to: 'events', label: 'Publish: order placed', mode: 'async' },
+				{
+					from: 'events',
+					to: 'stock-svc',
+					label: 'Order placed: take one from stock',
+					mode: 'async',
+				},
+				{
+					from: 'events',
+					to: 'reports',
+					label: 'Order placed: count the sale',
+					mode: 'async',
+				},
+				{
+					from: 'events',
+					to: 'worker',
+					label: 'Order placed: send a receipt',
+					mode: 'async',
+				},
+				{
+					from: 'worker',
+					to: 'email',
+					label: 'Send the receipt',
+					mode: 'async',
+					retries: 2,
+				},
+			],
+		},
+		{
+			id: 'parcel-poll',
+			name: 'Watch my parcel, asking every 2 seconds',
+			description:
+				'A thousand shoppers watch their parcel on a map. Each app asks for the van’s location every 2 seconds, whether it has moved or not.',
+			rps: 500,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Anything new?' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Read the van’s location' },
+			],
+		},
+		{
+			id: 'parcel-connect',
+			name: 'Open a live connection',
+			description:
+				'An app watching a parcel opens one connection to the live updates server, and keeps it open.',
+			rps: 2,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Open a connection, keep it open' },
+				{ from: 'lb', to: 'live', label: 'Pass it to a copy' },
+			],
+		},
+		{
+			id: 'parcel-push',
+			name: 'Watch my parcel, pushed',
+			description:
+				'Each van sends its location every 10 seconds. The server saves it and passes it on, and the live updates server pushes it to the apps watching that van.',
+			rps: 100,
+			hops: [
+				{ from: 'vans', to: 'lb', label: 'Here’s where I am' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Save the location' },
+				{ from: 'server', to: 'live', label: 'Pass it on to the watchers', mode: 'async' },
+				{ from: 'live', to: 'app', label: 'Push: your van moved', mode: 'async' },
+			],
+		},
+		{
+			id: 'pay-poll',
+			name: 'Is it paid yet?',
+			description:
+				'While a shopper pays, the shop asks the payment provider every couple of seconds whether the payment has gone through.',
+			rps: 50,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Has my payment gone through?' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'payments', label: 'Is order 5521 paid yet?' },
+			],
+		},
+		{
+			id: 'pay-webhook',
+			name: 'Paid: a webhook',
+			description:
+				'When a payment goes through, the payment provider calls the shop’s own address to say so, once.',
+			rps: 2,
+			hops: [
+				{ from: 'payments', to: 'lb', label: 'Order 5521 is paid' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Mark the order paid' },
+			],
+		},
+		{
+			id: 'pay-card',
+			name: 'Pay by card',
+			description:
+				'Someone pays for their order. The server asks the payment provider to charge the card, and tries again if a call fails.',
+			rps: 50,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Pay for the order' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'payments', label: 'Charge ₹1,499', retries: 2 },
+			],
+		},
+		{
+			id: 'look-recs',
+			name: 'Look at a product, with suggestions',
+			description:
+				'Someone opens a product. The page shows the product and, below it, similar products. Here, the page needs both.',
+			rps: 50,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Ask for the product page' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Read the product' },
+				{ from: 'server', to: 'recs', label: 'Find similar products' },
+			],
+		},
+		{
+			id: 'look-recs-opt',
+			name: 'Look at a product, suggestions if they come',
+			description:
+				'Someone opens a product. The page shows similar products if it can get them, and shows the page without them if not.',
+			rps: 50,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Ask for the product page' },
+				{ from: 'lb', to: 'server', label: 'Pass it to a copy' },
+				{ from: 'server', to: 'db', label: 'Read the product' },
+				{
+					from: 'server',
+					to: 'recs',
+					label: 'Find similar products, if it can',
+					optional: true,
+				},
+			],
+		},
+		{
+			id: 'look-gw',
+			name: 'Look at a product, through an API gateway',
+			description:
+				'Shoppers open products. Every request passes the API gateway, which checks how often each user is asking.',
+			rps: 150,
+			hops: [
+				{ from: 'app', to: 'lb', label: 'Ask for the product page' },
+				{ from: 'lb', to: 'gateway', label: 'Check it' },
+				{ from: 'gateway', to: 'server', label: 'Within the limit: pass it on' },
+				{ from: 'server', to: 'db', label: 'Read the product' },
+			],
+		},
+		{
+			id: 'scrape',
+			name: 'A bot copies every product',
+			description:
+				'A scraper bot asks for product after product, 400 times a second. Nothing limits it.',
+			rps: 400,
+			hops: [
+				{ from: 'bot', to: 'lb', label: 'Next product, please' },
+				{ from: 'lb', to: 'gateway', label: 'Check it' },
+				{ from: 'gateway', to: 'server', label: 'No limit set: pass it on' },
+				{ from: 'server', to: 'db', label: 'Read the product' },
+			],
+		},
+		{
+			id: 'scrape-limited',
+			name: 'A bot copies every product, limited',
+			description:
+				'The same bot, but the API gateway lets each user ask 20 times a second. The rest are turned away at once.',
+			rps: 400,
+			hops: [
+				{ from: 'bot', to: 'lb', label: 'Next product, please' },
+				{ from: 'lb', to: 'gateway', label: 'Check it' },
+				{
+					from: 'gateway',
+					to: 'server',
+					label: 'Within its limit, 20 a second: pass it on',
+					share: 0.05,
+				},
+				{ from: 'server', to: 'db', label: 'Read the product' },
+			],
+		},
 	],
 	presets: [
 		{
@@ -2822,5 +4006,5 @@ export const basics: SystemInput = {
 			down: ['email'],
 		},
 	],
-	course: [requests, performance, scaling, storing, distributed],
+	course: [requests, performance, scaling, storing, distributed, communication, reliability],
 };

@@ -1,6 +1,6 @@
 import type { System } from '@/model/schema';
 import type { SimInput, SimResult } from './engine';
-import { formatMs, formatShare, formatUtilization } from './format';
+import { formatMs, formatShare, formatUtilization, perMinute } from './format';
 
 /** Names in a sentence: “A, B and C”. */
 function listOf(names: string[]) {
@@ -119,11 +119,20 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 			} else if (state.instances >= component.maxInstances) {
 				why = ` Autoscaling has reached its limit of ${component.maxInstances} copies.`;
 			}
-			insights.push({
-				level: 'bad',
-				text: `${component.name} is overloaded. It gets ${formatUtilization(state.utilization)} of the requests it can handle, so ${formatShare(state.failRate)} of them fail.${why}`,
-				componentId: id,
-			});
+			insights.push(
+				state.backlog > 0
+					? {
+							// a queue in front keeps the work: it's late, not lost, while the queue lasts
+							level: 'warn',
+							text: `${component.name} can’t keep up. It gets ${formatUtilization(state.utilization)} of the work it can do, so jobs pile up in the queue, ${perMinute(state.backlog).replace(' every', ' more every')}, and wait their turn.${why}`,
+							componentId: id,
+						}
+					: {
+							level: 'bad',
+							text: `${component.name} is overloaded. It gets ${formatUtilization(state.utilization)} of the requests it can handle, so ${formatShare(state.failRate)} of them fail.${why}`,
+							componentId: id,
+						},
+			);
 		}
 
 		if (

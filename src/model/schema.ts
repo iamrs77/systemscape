@@ -85,6 +85,11 @@ export const hopSchema = z.object({
 	 * that keeps a server busy. It takes that much more capacity, and time.
 	 */
 	work: z.number().positive().default(1),
+	/**
+	 * Time the message spends travelling, there and back, on top of the
+	 * part's own time: about 150 ms for a phone on mobile data.
+	 */
+	travelMs: z.number().nonnegative().default(0),
 	/** How many times the caller tries again when the call fails. */
 	retries: z.number().int().min(0).max(10).default(0),
 	/** The request still succeeds without it (graceful degradation), e.g. a ride shown without an ETA. */

@@ -29,6 +29,8 @@ export type SimInput = {
 	scale?: Readonly<Record<string, number>>;
 	/** A cache's hit rate set by hand, e.g. a cold cache that's just started. */
 	hitRate?: Readonly<Record<string, number>>;
+	/** Parts that fail a share of calls at random, like a shaky connection: 0.05 for 1 in 20. */
+	flaky?: Readonly<Record<string, number>>;
 };
 
 export type Status = 'idle' | 'ok' | 'busy' | 'overloaded' | 'down';
@@ -52,6 +54,11 @@ export type ComponentState = {
 	autoscaled: boolean;
 	/** Callers have stopped calling it (circuit breakers). */
 	breakerOpen: boolean;
+	/**
+	 * Requests a second it can't get to that wait in a queue in front of it,
+	 * rather than failing: when only queues and streams hand it work.
+	 */
+	backlog: number;
 };
 
 export type HopState = {
@@ -118,7 +125,7 @@ export function simulate(system: System, input: SimInput): SimResult {
 	const failRate = new Map<string, number>();
 	const instances = new Map<string, number>();
 	for (const c of system.components) {
-		failRate.set(c.id, input.down.has(c.id) ? 1 : 0);
+		failRate.set(c.id, input.down.has(c.id) ? 1 : (input.flaky?.[c.id] ?? 0));
 		instances.set(c.id, baseInstances(c));
 	}
 	const capacityOf = (c: Component) =>
@@ -133,11 +140,14 @@ export function simulate(system: System, input: SimInput): SimResult {
 	let lastLoad = new Map<string, number>();
 	let lastOffered = new Map<string, number>();
 	let journeys: Record<string, JourneyState> = {};
+	// parts something calls directly, not only through a queue
+	let called = new Set<string>();
 
 	for (let round = 0; round < 200; round++) {
 		load = new Map();
 		// first attempts only, as if nothing failed: what circuit breakers judge by
 		offered = new Map();
+		called = new Set();
 		journeys = {};
 		const breakerOpen = (c: Component) => {
 			if (!input.circuitBreakers || isCache(c) || c.kind === 'client') return false;
@@ -192,9 +202,14 @@ export function simulate(system: System, input: SimInput): SimResult {
 					callFail = f ** (tries + 1);
 				}
 				load.set(to.id, (load.get(to.id) ?? 0) + sent * hop.work * rps);
+				// a queue keeps what its worker can't take yet: overload makes it wait,
+				// not fail (a worker that's down still fails it)
+				const queued =
+					(from.kind === 'queue' || from.kind === 'stream') && !input.down.has(to.id);
+				if (!queued && sent * rps > 0) called.add(to.id);
 				const hopState: HopState = {
 					sent: sent * rps,
-					failRate: callFail,
+					failRate: queued ? 0 : callFail,
 					breakerOpen: open,
 					waitMs: 0,
 				};
@@ -206,7 +221,7 @@ export function simulate(system: System, input: SimInput): SimResult {
 				if (hop.mode === 'async') {
 					// background work finishes only if every async step does
 					background = Math.max(background, perRequest);
-					backgroundFailed += perRequest * callFail;
+					backgroundFailed += perRequest * (queued ? 0 : callFail);
 					continue;
 				}
 				// otherwise a failed call waits for its timeout, once per try
@@ -216,8 +231,10 @@ export function simulate(system: System, input: SimInput): SimResult {
 					TIMEOUT_MS,
 					hop.work * latencyAt(to, (lastLoad.get(to.id) ?? 0) / capacityOf(to)),
 				);
+				// an answer also takes the time to travel there and back
 				hopState.waitMs =
-					perRequest * ((1 - callFail) * toLatency + callFail * waitOnFailure);
+					perRequest *
+					((1 - callFail) * (toLatency + hop.travelMs) + callFail * waitOnFailure);
 				latencyMs += hopState.waitMs;
 				if (isCache(to)) continue;
 				if (hop.optional) degraded += perRequest * callFail;
@@ -250,11 +267,10 @@ export function simulate(system: System, input: SimInput): SimResult {
 				instances.set(c.id, next);
 			}
 			const capacity = capacityOf(c);
-			const target = input.down.has(c.id)
-				? 1
-				: arriving > capacity
-					? 1 - capacity / arriving
-					: 0;
+			const overload = arriving > capacity ? 1 - capacity / arriving : 0;
+			// random failures, and on top of them the share turned away for being too busy
+			const flaky = input.flaky?.[c.id] ?? 0;
+			const target = input.down.has(c.id) ? 1 : 1 - (1 - flaky) * (1 - overload);
 			const previous = failRate.get(c.id) ?? 0;
 			// move halfway each round, so retries and failures settle instead of swinging
 			const next = previous + (target - previous) / 2;
@@ -279,13 +295,16 @@ export function simulate(system: System, input: SimInput): SimResult {
 		const down = input.down.has(c.id);
 		const count = instances.get(c.id) ?? baseInstances(c);
 		const demand = offered.get(c.id) ?? 0;
+		// more than it can do, all of it from queues: the rest waits its turn
+		const waits = !down && arriving > capacity && !called.has(c.id);
 		components[c.id] = {
 			load: arriving,
 			demand,
 			instances: count,
 			capacity,
 			utilization,
-			failRate: down ? 1 : Math.max(0, failRate.get(c.id) ?? 0),
+			failRate: down ? 1 : waits ? 0 : Math.max(0, failRate.get(c.id) ?? 0),
+			backlog: waits ? arriving - capacity : 0,
 			latencyMs: latencyAt(c, utilization),
 			status: down
 				? 'down'

@@ -35,6 +35,8 @@ export type Conditions = {
 	/** Bigger servers: 2 is twice the capacity for each copy. */
 	bigger?: Record<string, number>;
 	hitRate?: Record<string, number>;
+	/** Parts that fail a share of calls at random, like a shaky connection. */
+	flaky?: Record<string, number>;
 	retries?: boolean;
 	circuitBreakers?: boolean;
 	/** Off unless a step turns it on, so the copies stay what the step says. */
@@ -65,5 +67,6 @@ export function conditionsInput(system: System, conditions: Conditions): SimInpu
 		instances: conditions.copies ?? {},
 		scale: conditions.bigger,
 		hitRate: conditions.hitRate,
+		flaky: conditions.flaky,
 	};
 }
