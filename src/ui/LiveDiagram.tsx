@@ -1,6 +1,13 @@
 import { useMemo } from 'react';
 import { Diagram, type EdgeLook } from '@/diagram/Diagram';
-import { edgeKey, journeyComponents } from '@/diagram/layout';
+import {
+	edgeKey,
+	journeyComponents,
+	resultWithOnly,
+	runningJourneys,
+	runningParts,
+	withOnly,
+} from '@/diagram/layout';
 import { useApp, useSystem } from '@/store';
 
 /** The diagram for exploring freely: the app’s own conditions and result. */
@@ -16,20 +23,39 @@ export function LiveDiagram() {
 		const looks = new Map<string, EdgeLook>();
 		for (const journey of system.journeys) {
 			if (journeyId !== null && journey.id !== journeyId) continue;
+			// a journey switched off (an alternative kept for teaching) isn't drawn
+			if (journeyId === null && (result.journeys[journey.id]?.rps ?? 0) === 0) continue;
 			for (const hop of journey.hops) looks.set(edgeKey(hop.from, hop.to), 'flow');
 		}
 		return looks;
-	}, [system, journeyId]);
+	}, [system, journeyId, result]);
 	const focus = useMemo(
 		() => (journeyId ? journeyComponents(system, journeyId) : null),
 		[system, journeyId],
 	);
 	const journey = system.journeys.find((j) => j.id === journeyId);
 
+	// a course's system holds every design its lessons compare: only the parts in use are drawn
+	const parts = system.course ? [...runningParts(system, result)].sort().join(' ') : '';
+	const running = parts === '' ? null : parts;
+	const journeys = system.course ? runningJourneys(system, result).join(' ') : '';
+	const drawnSystem = useMemo(
+		() =>
+			running === null
+				? system
+				: withOnly(system, new Set(running.split(' ')), new Set(journeys.split(' '))),
+		[system, running, journeys],
+	);
+	const drawnResult = useMemo(
+		() =>
+			running === null ? result : resultWithOnly(system, result, new Set(running.split(' '))),
+		[system, result, running],
+	);
+
 	return (
 		<Diagram
-			system={system}
-			result={result}
+			system={drawnSystem}
+			result={drawnResult}
 			edges={edges}
 			journeyId={journeyId}
 			focus={focus}

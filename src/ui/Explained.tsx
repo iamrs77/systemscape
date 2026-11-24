@@ -14,11 +14,31 @@ const useTerm = create<{ open: Open | null; show(open: Open | null): void }>()((
 
 /** Text with its glossary words underlined: tap one to see what it means. */
 export function Explained({ pieces }: { pieces: Piece[] }) {
+	// what follows a word with no space, like a full stop, stays on its line
+	const glued = pieces.map((piece) => ({ ...piece, tail: '' }));
+	glued.forEach((piece, i) => {
+		const next = glued[i + 1];
+		if (piece.kind !== 'term' || next?.kind !== 'text' || next.strong !== piece.strong) return;
+		const tail = /^\S+/.exec(next.text)?.[0] ?? '';
+		piece.tail = tail;
+		next.text = next.text.slice(tail.length);
+	});
 	return (
 		<>
-			{pieces.map((piece, i) => {
+			{glued.map((piece, i) => {
 				const content =
-					piece.kind === 'term' ? <Word id={piece.id} text={piece.text} /> : piece.text;
+					piece.kind === 'term' ? (
+						piece.tail ? (
+							<span className="whitespace-nowrap">
+								<Word id={piece.id} text={piece.text} />
+								{piece.tail}
+							</span>
+						) : (
+							<Word id={piece.id} text={piece.text} />
+						)
+					) : (
+						piece.text
+					);
 				return piece.strong ? (
 					<strong key={i} className="font-semibold text-ink">
 						{content}

@@ -3,7 +3,13 @@ import type { System } from '@/model/schema';
 import { simulate, type SimInput, type SimResult } from '@/sim/engine';
 import type { Change } from '@/sim/fixes';
 import { mainJourney } from '@/learn/lessons';
-import { MAX_INSTANCES, scenarioConditions, scenarioInput } from '@/sim/scenario';
+import {
+	conditionsInput,
+	MAX_INSTANCES,
+	scenarioConditions,
+	scenarioInput,
+	type Conditions,
+} from '@/sim/scenario';
 import { getSystem, systems } from '@/systems';
 
 export type Option = 'autoscale' | 'retries' | 'circuitBreakers' | 'sudden';
@@ -41,7 +47,7 @@ type Actions = {
 	hover(componentId: string | null): void;
 	selectJourney(journeyId: string | null): void;
 	/** Starts exploring from an evening, following a journey: where a lesson's "try it yourself" leads. */
-	setUp(presetId: string, journeyId: string | null): void;
+	setUp(presetId: string | null, journeyId: string | null, conditions?: Conditions): void;
 	/** Back to how the evening started. */
 	reset(): void;
 	/** Makes one of the fixes offered for a problem. */
@@ -176,10 +182,10 @@ export const useApp = create<AppState>()((set, get) => {
 			set({ journeyId });
 		},
 
-		setUp(presetId, journeyId) {
+		setUp(presetId, journeyId, conditions) {
 			const preset = system().presets.find((p) => p.id === presetId) ?? system().presets[0]!;
 			set({ presetId: preset.id, journeyId, selected: null });
-			run(scenarioInput(preset));
+			run(conditions ? conditionsInput(system(), conditions) : scenarioInput(preset));
 		},
 
 		reset() {

@@ -25,12 +25,16 @@ export type SimInput = {
 	down: ReadonlySet<string>;
 	/** Instances set by hand, by component id. */
 	instances: Readonly<Record<string, number>>;
+	/** Bigger servers: multiplies a component's capacity for each copy, e.g. 2 for twice as much. */
+	scale?: Readonly<Record<string, number>>;
+	/** A cache's hit rate set by hand, e.g. a cold cache that's just started. */
+	hitRate?: Readonly<Record<string, number>>;
 };
 
 export type Status = 'idle' | 'ok' | 'busy' | 'overloaded' | 'down';
 
 export type ComponentState = {
-	/** Requests per second arriving, retries included. */
+	/** Requests per second arriving, retries included, each counted by how much work it is (see a hop's `work`). */
 	load: number;
 	/** Requests per second asked for, before retries: what circuit breakers judge by. */
 	demand: number;
@@ -120,7 +124,8 @@ export function simulate(system: System, input: SimInput): SimResult {
 	const capacityOf = (c: Component) =>
 		c.capacityPerInstance === undefined
 			? Infinity
-			: c.capacityPerInstance * (instances.get(c.id) ?? 1);
+			: c.capacityPerInstance * (input.scale?.[c.id] ?? 1) * (instances.get(c.id) ?? 1);
+	const hitRateOf = (c: Component) => input.hitRate?.[c.id] ?? c.hitRate ?? 0;
 
 	let load = new Map<string, number>();
 	let offered = new Map<string, number>();
@@ -158,10 +163,10 @@ export function simulate(system: System, input: SimInput): SimResult {
 				let perRequest = (reach.get(hop.from) ?? 0) * hop.share;
 				if (hop.onMiss) {
 					// a cache that fails counts as a miss: the request carries on behind it
-					perRequest *= 1 - (from.hitRate ?? 0) * (1 - (failRate.get(from.id) ?? 0));
+					perRequest *= 1 - hitRateOf(from) * (1 - (failRate.get(from.id) ?? 0));
 				}
 				const calls = perRequest * hop.calls;
-				offered.set(to.id, (offered.get(to.id) ?? 0) + calls * rps);
+				offered.set(to.id, (offered.get(to.id) ?? 0) + calls * hop.work * rps);
 
 				const f = failRate.get(to.id) ?? 0;
 				const open = breakerOpen(to);
@@ -186,7 +191,7 @@ export function simulate(system: System, input: SimInput): SimResult {
 					sent = calls * attempts;
 					callFail = f ** (tries + 1);
 				}
-				load.set(to.id, (load.get(to.id) ?? 0) + sent * rps);
+				load.set(to.id, (load.get(to.id) ?? 0) + sent * hop.work * rps);
 				const hopState: HopState = {
 					sent: sent * rps,
 					failRate: callFail,
@@ -207,7 +212,10 @@ export function simulate(system: System, input: SimInput): SimResult {
 				// otherwise a failed call waits for its timeout, once per try
 				const timeout = isCache(to) ? CACHE_TIMEOUT_MS : TIMEOUT_MS;
 				const waitOnFailure = failFast ? 0 : timeout * (tries + 1);
-				const toLatency = latencyAt(to, (lastLoad.get(to.id) ?? 0) / capacityOf(to));
+				const toLatency = Math.min(
+					TIMEOUT_MS,
+					hop.work * latencyAt(to, (lastLoad.get(to.id) ?? 0) / capacityOf(to)),
+				);
 				hopState.waitMs =
 					perRequest * ((1 - callFail) * toLatency + callFail * waitOnFailure);
 				latencyMs += hopState.waitMs;

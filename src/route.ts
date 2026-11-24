@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { OVERVIEW } from '@/learn/lessons';
-import { systems } from '@/systems';
+import { lessonsOf } from '@/learn/lessons';
+import { allSystems } from '@/systems';
 
 /**
  * Which page you're on, kept in the URL's hash (#/ride-hailing/learn/request-ride/3),
@@ -28,13 +28,13 @@ export function parseRoute(hash: string): Route {
 		.split('?')[0]!
 		.split('/')
 		.filter(Boolean);
-	const system = systems.find((s) => s.id === systemId);
+	const system = allSystems.find((s) => s.id === systemId);
 	if (!system) return { page: 'home' };
 	const at = (mode: Mode): Route => ({ page: 'system', systemId, mode });
 
 	if (section === 'explore') return at({ kind: 'explore' });
-	const lessons = [OVERVIEW, ...system.journeys.map((j) => j.id)];
-	const lessonId = section === 'learn' && lessons.includes(target ?? '') ? target! : OVERVIEW;
+	const lessons = lessonsOf(system).map((l) => l.id);
+	const lessonId = section === 'learn' && lessons.includes(target ?? '') ? target! : lessons[0]!;
 	const n = Number(step);
 	return at({ kind: 'learn', lessonId, step: Number.isInteger(n) && n > 1 ? n - 1 : 0 });
 }

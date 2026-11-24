@@ -39,6 +39,9 @@ export function JourneyPanel() {
 					</button>
 				</li>
 				{system.journeys.map((journey) => {
+					// journeys switched off are alternatives kept for teaching: not listed
+					if ((journeys[journey.id]?.rps ?? 0) === 0 && journeyId !== journey.id)
+						return null;
 					const state = journeys[journey.id]!;
 					const active = journeyId === journey.id;
 					return (

@@ -10,9 +10,10 @@ import {
 } from '@/model/schema';
 import { simulate, type JourneyState, type SimInput, type SimResult } from '@/sim/engine';
 import { fixesFor } from '@/sim/fixes';
+import { courseLessons } from './course';
 import { feelOfMs, feelOfShare, formatMs, formatRps, formatShare, perMinute } from '@/sim/format';
 import { explain, SLOW_MS } from '@/sim/insights';
-import { scenarioInput } from '@/sim/scenario';
+import { scenarioInput, type Conditions } from '@/sim/scenario';
 
 /**
  * Lessons, made from a system's data, so every system gets them without
@@ -39,6 +40,8 @@ export type LessonStep = {
 	edges: [string, EdgeLook][];
 	/** Whose requests the connections carry. */
 	journeyId: string | null;
+	/** In a course, the journeys drawn: only they decide how the calls look. */
+	journeys?: string[];
 	/** The scenario the diagram runs, when it isn't an ordinary day. */
 	presetId?: string;
 	/** Show how many copies of each part are running, as badges. */
@@ -50,8 +53,18 @@ export type LessonStep = {
 	/** The part this step is about, to read more on. */
 	about?: string;
 	/** Where to go from the last step. */
-	/** Opens Explore freely, set to an evening and following a journey. */
-	action?: { kind: 'explore'; label: string; presetId?: string; journeyId?: string };
+	/** Opens Explore freely, set to an evening (or to the step's conditions) and following a journey. */
+	action?: {
+		kind: 'explore';
+		label: string;
+		presetId?: string;
+		journeyId?: string;
+		conditions?: Conditions;
+	};
+	/** In a hand-written course: what the diagram runs, worked out once. */
+	result?: SimResult;
+	/** In a hand-written course: the conditions behind that result. */
+	conditions?: Conditions;
 };
 
 export type Lesson = {
@@ -60,6 +73,8 @@ export type Lesson = {
 	title: string;
 	summary: string;
 	steps: LessonStep[];
+	/** In a hand-written course, the track it belongs to, like "Performance". */
+	track?: { id: string; name: string };
 };
 
 export const OVERVIEW = 'overview';
@@ -101,6 +116,7 @@ function ordinary(system: System): SimInput {
 }
 
 export function lessonsFor(system: System): Lesson[] {
+	if (system.course) return courseLessons(system, system.course);
 	const result = simulate(system, ordinary(system));
 	return [overview(system), ...system.journeys.map((j) => journeyLesson(system, j, result))];
 }
@@ -141,6 +157,18 @@ export function stepInput(system: System, presetId: string | undefined): SimInpu
 	return preset ? scenarioInput(preset) : ordinary(system);
 }
 
+/** How often, as a fact: so many a second, or, for rare ones, so many a minute. */
+function rateFact(what: 'Requests' | 'Calls', rps: number): LessonStep['facts'][number] {
+	if (rps > 0 && rps < 0.1) {
+		return {
+			label: `${what} a minute`,
+			value: (rps * 60).toFixed(1).replace(/\.0$/, ''),
+			hint: `about one every ${Math.round(1 / rps)} seconds`,
+		};
+	}
+	return { label: `${what} a second`, value: formatRps(rps), hint: perMinute(rps) };
+}
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
@@ -149,7 +177,9 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
  */
 export function mainJourney(system: System) {
 	const app = system.components.find((c) => c.kind === 'client')?.id;
-	const fromApp = system.journeys.filter((j) => j.hops[0]!.from === app);
+	// journeys switched off on an ordinary day are alternatives, kept for teaching
+	const on = (id: string) => (system.presets[0]?.journeyTraffic[id] ?? 1) > 0;
+	const fromApp = system.journeys.filter((j) => j.hops[0]!.from === app && on(j.id));
 	return [...(fromApp.length ? fromApp : system.journeys)].sort(
 		(a, b) => b.hops.length - a.hops.length,
 	)[0]!;
@@ -323,11 +353,7 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 						: `It takes ${plural(journey.hops.length, 'call')} between ${plural(involved.length, 'part')}. Let’s follow one request from start to finish.`,
 				],
 				facts: [
-					{
-						label: 'Requests a second',
-						value: formatRps(state.rps),
-						hint: perMinute(state.rps),
-					},
+					rateFact('Requests', state.rps),
 					{ label: 'Calls', value: String(journey.hops.length) },
 					{ label: 'Parts', value: String(involved.length) },
 				],
@@ -360,11 +386,7 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 						value: formatShare(state.success),
 						hint: feelOfShare(state.success),
 					},
-					{
-						label: 'Requests a second',
-						value: formatRps(state.rps),
-						hint: perMinute(state.rps),
-					},
+					rateFact('Requests', state.rps),
 				],
 				tags: [],
 				focus: involved,
@@ -481,7 +503,7 @@ function hopFacts(
 	// a call few requests make: what it adds when it happens, not shared out over everyone
 	const rare = often < 0.5 && often > 0;
 	const facts: LessonStep['facts'] = [
-		{ label: 'Calls a second', value: formatRps(sent), hint: perMinute(sent) },
+		rateFact('Calls', sent),
 		hop.mode === 'async'
 			? { label: 'Adds to the wait', value: 'nothing', hint: 'nobody waits for it' }
 			: rare

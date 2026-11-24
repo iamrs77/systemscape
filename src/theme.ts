@@ -49,6 +49,7 @@ export const layerLabel: Record<Layer, string> = {
 export const basisLabel: Record<System['basis'], string> = {
 	inspired: 'Simplified, from public talks',
 	real: 'Real architecture',
+	example: 'Made up to teach',
 };
 
 /** Green when nearly everything succeeds quickly, amber when slow, red when failing. */

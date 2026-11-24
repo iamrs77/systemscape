@@ -1,6 +1,8 @@
 import { parseSystem } from '@/model/parseSystem';
 import type { System } from '@/model/schema';
+import { basics as basicsInput } from './basics';
 import { rideHailing } from './rideHailing';
+import { stockroom } from './stockroom';
 import { upiPayments } from './upiPayments';
 import { videoStreaming } from './videoStreaming';
 
@@ -9,6 +11,7 @@ export const systems: readonly System[] = [
 	parseSystem(rideHailing),
 	parseSystem(videoStreaming),
 	parseSystem(upiPayments),
+	parseSystem(stockroom),
 ];
 
 /** Systems still being built: listed so visitors know what's coming. */
@@ -17,9 +20,14 @@ export const comingSoon = [
 		name: 'Stock trading app',
 		tagline: 'Live prices and order matching for millions of traders.',
 	},
-	{ name: 'Stockroom', tagline: 'My own inventory app, with its real architecture.' },
 ] as const;
 
+/** The basics: a made-up shop app with a hand-written course on the ideas behind every system. */
+export const basics: System = parseSystem(basicsInput);
+
+/** Every system you can open, the basics included. */
+export const allSystems: readonly System[] = [basics, ...systems];
+
 export function getSystem(id: string): System {
-	return systems.find((s) => s.id === id) ?? systems[0]!;
+	return allSystems.find((s) => s.id === id) ?? systems[0]!;
 }

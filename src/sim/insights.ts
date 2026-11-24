@@ -35,7 +35,8 @@ export function explain(system: System, input: SimInput, result: SimResult): Ins
 
 	for (const journey of system.journeys) {
 		const state = result.journeys[journey.id];
-		if (!state) continue;
+		// a journey switched off (an alternative kept for teaching) has nothing to say
+		if (!state || state.rps === 0) continue;
 
 		if (state.success < 0.99) {
 			// blame the required step that fails the most

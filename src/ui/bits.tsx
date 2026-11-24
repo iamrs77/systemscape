@@ -5,8 +5,8 @@ import { cx } from './cx';
 import { ExpandIcon, PauseIcon, PlayIcon, ShrinkIcon } from './icons';
 
 /**
- * Small labelled numbers, in a row above the diagram: on a phone a slim one,
- * with just the numbers.
+ * Small labelled numbers, in a row floating over the diagram's top left: on a
+ * phone, a slim row above it, with just the numbers.
  */
 export function Facts({ facts }: { facts: { label: string; value: string; hint?: string }[] }) {
 	if (facts.length === 0) return null;
@@ -147,7 +147,12 @@ export function DiagramFrame({
 					'h-[calc(100dvh-1rem)] sm:h-[calc(100dvh-1.5rem)] lg:h-auto [&_svg]:touch-none',
 			)}
 		>
-			{over && <div className="px-2.5 pt-2.5 sm:px-3 sm:pt-3">{over}</div>}
+			{/* the numbers float over the diagram's top left, above it, and let clicks through; on a phone, a row above it */}
+			{over && (
+				<div className="px-2.5 pt-2.5 sm:pointer-events-none sm:absolute sm:top-3 sm:left-3 sm:z-10 sm:p-0">
+					{over}
+				</div>
+			)}
 			{/* on a phone the diagram keeps its own height, whatever is below it */}
 			<div
 				className={

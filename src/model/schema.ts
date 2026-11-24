@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Track } from '@/learn/course';
 
 /**
  * The data format for a system. Each system in src/systems is one of these,
@@ -78,8 +79,14 @@ export const hopSchema = z.object({
 	share: z.number().min(0).max(1).default(1),
 	/** Calls per request, e.g. 3 when a request asks three drivers. */
 	calls: z.number().positive().default(1),
+	/**
+	 * How much work each call is for the part it calls, compared with an
+	 * ordinary request: 20 for a search that reads every row, or an upload
+	 * that keeps a server busy. It takes that much more capacity, and time.
+	 */
+	work: z.number().positive().default(1),
 	/** How many times the caller tries again when the call fails. */
-	retries: z.number().int().min(0).max(5).default(0),
+	retries: z.number().int().min(0).max(10).default(0),
 	/** The request still succeeds without it (graceful degradation), e.g. a ride shown without an ETA. */
 	optional: z.boolean().default(false),
 	/**
@@ -122,7 +129,7 @@ export const presetSchema = z.object({
 	/** Multiplies every journey's traffic. */
 	traffic: z.number().positive(),
 	/** Extra multipliers for some journeys, e.g. more ride requests when it rains. */
-	journeyTraffic: z.record(z.string(), z.number().positive()).default({}),
+	journeyTraffic: z.record(z.string(), z.number().nonnegative()).default({}),
 	/** Arrives within minutes: autoscaling is too slow to help, only scaling ahead of time does. */
 	sudden: z.boolean().default(false),
 	/** Parts that have stopped working, e.g. a cache that restarted or an outside provider's outage. */
@@ -134,8 +141,11 @@ export const systemSchema = z.object({
 	id,
 	name: text,
 	tagline: text,
-	/** inspired: a simplified design based on public talks and posts, not anyone's actual system. */
-	basis: z.enum(['real', 'inspired']),
+	/**
+	 * inspired: a simplified design based on public talks and posts, not anyone's
+	 * actual system. example: made up to teach an idea.
+	 */
+	basis: z.enum(['real', 'inspired', 'example']),
 	description: z.array(text).min(1),
 	sources: z
 		.array(z.object({ title: text, url: z.url(), publisher: text.optional() }))
@@ -146,6 +156,11 @@ export const systemSchema = z.object({
 	 * lesson. Rows left out get a general sentence.
 	 */
 	rows: z.partialRecord(z.enum(layers), text).default({}),
+	/**
+	 * A hand-written course, for a system made to teach ideas rather than show
+	 * a product. Without one, lessons are made from the journeys.
+	 */
+	course: z.array(z.custom<Track>()).optional(),
 	components: z.array(componentSchema).min(2),
 	journeys: z.array(journeySchema).min(1),
 	presets: z.array(presetSchema).min(1),

@@ -37,9 +37,11 @@ export function fixesFor(
 			component !== undefined &&
 			component.kind !== 'cache' &&
 			component.kind !== 'cdn' &&
-			// a person using an app waits on it: not just another company's system
+			// a person using an app waits on it, in a journey that's running: not
+			// just another company's system, or a design that's switched off
 			system.journeys.some(
 				(j) =>
+					(result.journeys[j.id]?.rps ?? 0) > 0 &&
 					system.components.find((c) => c.id === j.hops[0]!.from)?.kind === 'client' &&
 					j.hops.some((h) => h.to === component.id && h.mode === 'sync'),
 			);

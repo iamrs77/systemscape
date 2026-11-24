@@ -303,6 +303,66 @@ export function edgeTraffic(
 	return traffic;
 }
 
+/**
+ * The system with only some of its parts, and the calls between them, so a
+ * small picture is laid out on its own rather than among faint parts it
+ * doesn't use. Given the journeys to draw, the others are left out too, so a
+ * design that's switched off can't change how a call looks (waited for, or
+ * not). The same system comes back when nothing is left out.
+ */
+export function withOnly(
+	system: System,
+	keep: ReadonlySet<string>,
+	journeys?: ReadonlySet<string>,
+): System {
+	if (!journeys && system.components.every((c) => keep.has(c.id))) return system;
+	return {
+		...system,
+		components: system.components.filter((c) => keep.has(c.id)),
+		journeys: system.journeys
+			.filter((j) => !journeys || journeys.has(j.id))
+			.map((j) => ({ ...j, hops: j.hops.filter((h) => keep.has(h.from) && keep.has(h.to)) }))
+			.filter((j) => j.hops.length > 0),
+	};
+}
+
+/** A result to go with `withOnly`: each journey's steps, the same ones left out. */
+export function resultWithOnly(
+	system: System,
+	result: SimResult,
+	keep: ReadonlySet<string>,
+): SimResult {
+	if (system.components.every((c) => keep.has(c.id))) return result;
+	const journeys: SimResult['journeys'] = {};
+	for (const journey of system.journeys) {
+		const state = result.journeys[journey.id];
+		if (!state) continue;
+		journeys[journey.id] = {
+			...state,
+			hops: state.hops.filter((_, i) => {
+				const hop = journey.hops[i]!;
+				return keep.has(hop.from) && keep.has(hop.to);
+			}),
+		};
+	}
+	return { ...result, journeys };
+}
+
+/** The journeys that are running: the designs a course keeps switched off aren't. */
+export function runningJourneys(system: System, result: SimResult): string[] {
+	return system.journeys.filter((j) => (result.journeys[j.id]?.rps ?? 0) > 0).map((j) => j.id);
+}
+
+/** The parts the journeys that are running touch. */
+export function runningParts(system: System, result: SimResult): Set<string> {
+	const running = new Set(runningJourneys(system, result));
+	return new Set(
+		system.journeys
+			.filter((j) => running.has(j.id))
+			.flatMap((j) => j.hops.flatMap((h) => [h.from, h.to])),
+	);
+}
+
 /** The components a journey touches. */
 export function journeyComponents(system: System, journeyId: string): Set<string> {
 	const journey = system.journeys.find((j) => j.id === journeyId);

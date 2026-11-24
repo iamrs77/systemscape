@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { homeHref, systemHref } from '@/route';
-import { comingSoon, systems } from '@/systems';
+import { allSystems, comingSoon } from '@/systems';
 import { useApp, useSystem } from '@/store';
 import { Button } from './controls';
 import { ArrowIcon, BookIcon, ChevronIcon, GitHubIcon, InfoIcon } from './icons';
@@ -85,7 +85,7 @@ function SystemPicker() {
 			{open && (
 				<div className="surface absolute top-full left-0 z-40 mt-2 w-80 p-1.5">
 					<ul>
-						{systems.map((s) => (
+						{allSystems.map((s) => (
 							<li key={s.id}>
 								<a
 									href={systemHref(s.id)}

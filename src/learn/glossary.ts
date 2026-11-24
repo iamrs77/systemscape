@@ -89,7 +89,23 @@ export const glossary: Term[] = [
 		meaning:
 			'Making the app able to handle more users. You can add more copies, called scaling out, or use a bigger computer, called scaling up.',
 		like: 'A bakery making more bread by adding ovens, or by buying one much bigger oven.',
-		forms: ['scaling', 'scale', 'scales', 'scaled', 'scale out', 'scale up'],
+		forms: ['scaling', 'scale', 'scales', 'scaled'],
+	},
+	{
+		id: 'scale-up',
+		term: 'Scaling up',
+		meaning:
+			'Handling more by moving to a bigger computer, with more processors and memory. Also called vertical scaling.',
+		like: 'Buying one much bigger oven.',
+		forms: ['scaling up', 'scale up', 'scales up', 'vertical scaling'],
+	},
+	{
+		id: 'scale-out',
+		term: 'Scaling out',
+		meaning:
+			'Handling more by running more copies of the same part, and sharing the work between them. Also called horizontal scaling.',
+		like: 'Adding more ovens, each baking the same bread.',
+		forms: ['scaling out', 'scale out', 'scales out', 'horizontal scaling'],
 	},
 	{
 		id: 'autoscaling',
@@ -246,12 +262,26 @@ export const glossary: Term[] = [
 		forms: ['partition', 'partitions', 'partitioned'],
 	},
 	{
+		id: 'hot-shard',
+		term: 'Hot shard',
+		meaning:
+			'A shard that gets far more work than the others, because what it holds is popular. It fills up while the rest sit idle.',
+		forms: ['hot shard', 'hot shards'],
+	},
+	{
+		id: 'hash',
+		term: 'Hash',
+		meaning:
+			'A number worked out from a value, like a shopper’s id. It looks random, but it’s always the same for the same value, so it spreads things evenly, like shoppers between shards.',
+		forms: ['hash', 'hashes'],
+	},
+	{
 		id: 'replica',
 		term: 'Replica',
 		meaning:
 			'An exact copy of a database, kept on another server. If one server breaks, no data is lost, and the copies share the work of reading.',
 		like: 'Several copies of the same textbook, so more students can read at once and losing one doesn’t matter.',
-		forms: ['replica', 'replicas', 'replicated', 'replication'],
+		forms: ['replica', 'replicas', 'replicated', 'replication', 'read copy', 'read copies'],
 	},
 	{
 		id: 'cache',
@@ -268,6 +298,21 @@ export const glossary: Term[] = [
 			'When the cache doesn’t have the answer, so the slow work has to be done after all.',
 		like: 'Finding that the thing you need isn’t on your desk, so you go to the cupboard.',
 		forms: ['cache miss', 'cache misses'],
+	},
+	{
+		id: 'cache-hit',
+		term: 'Cache hit',
+		meaning: 'When the cache already has the answer, so the slow work is skipped.',
+		like: 'Finding what you need right there on your desk.',
+		forms: ['cache hit', 'cache hits'],
+	},
+	{
+		id: 'cold-cache',
+		term: 'Cold cache',
+		meaning:
+			'A cache that has just started, empty. Every request misses until it fills up again, so they all go on to the database.',
+		like: 'A new desk with nothing on it yet: every time, you go to the cupboard.',
+		forms: ['cold cache'],
 	},
 	{
 		id: 'hit-rate',
@@ -483,6 +528,214 @@ export const glossary: Term[] = [
 		meaning:
 			'A square pattern a phone camera can read. At a shop, it holds the shop’s UPI ID, so nobody has to type it.',
 		forms: ['qr code', 'qr codes'],
+	},
+	{
+		id: 'transaction',
+		term: 'Transaction',
+		meaning:
+			'A group of database changes that are saved together or not at all. If one fails, none of them are kept.',
+		like: 'Swapping keys for cash at a counter: either both change hands, or neither does.',
+		forms: ['one transaction', 'same transaction', 'database transaction'],
+	},
+	{
+		id: 'sql',
+		term: 'SQL',
+		meaning:
+			'A kind of database that keeps data in tables, with rows and columns, and the language used to ask it questions. PostgreSQL and MySQL are SQL databases.',
+		forms: ['sql'],
+	},
+	{
+		id: 'nosql',
+		term: 'NoSQL',
+		meaning:
+			'Any database that doesn’t keep data in tables: documents, keys and values, and more. Many are built to spread over many machines.',
+		forms: ['nosql'],
+	},
+	{
+		id: 'document-database',
+		term: 'Document database',
+		meaning:
+			'A NoSQL database that keeps each thing, like an order, as one document with everything about it inside, read in one go.',
+		like: 'A folder per customer, instead of one big ledger for each kind of paper.',
+		forms: ['document database', 'document databases'],
+	},
+	{
+		id: 'join',
+		term: 'Join',
+		meaning:
+			'Putting rows from several tables back together in one answer, like an order with its items and their products.',
+		forms: ['join', 'joins', 'joining'],
+	},
+	{
+		id: 'b-tree',
+		term: 'B-tree',
+		meaning:
+			'The sorted shape most databases keep their data and indexes in. Finding a row takes a few quick steps, however big the table.',
+		like: 'A dictionary: open it near the right letter, then narrow down.',
+		forms: ['b-tree', 'b-trees'],
+	},
+	{
+		id: 'locks',
+		term: 'Lock',
+		meaning:
+			'A mark a transaction puts on a row while it changes it. Other transactions that want the same row wait until it’s done.',
+		like: 'An engaged sign on a changing room door.',
+		forms: ['locks', 'locked', 'locking'],
+	},
+	{
+		id: 'isolation',
+		term: 'Isolation',
+		meaning:
+			'How well transactions running at the same time are kept apart, so one never sees another’s half-made changes.',
+		forms: ['isolation'],
+	},
+	{
+		id: 'race',
+		term: 'Race',
+		meaning:
+			'A mistake that only happens when two things run at the same moment, so the result depends on which gets there first.',
+		like: 'Two people booking the last seat in a cinema at the same second.',
+		forms: ['race', 'races', 'race condition', 'race conditions'],
+	},
+	{
+		id: 'leader',
+		term: 'Leader',
+		meaning:
+			'The one copy of a database that takes changes. It sends each change on to its followers.',
+		forms: ['leader', 'leaders'],
+	},
+	{
+		id: 'follower',
+		term: 'Follower',
+		meaning:
+			'A copy of a database that receives every change from the leader. It can answer reads, and take over if the leader breaks.',
+		forms: ['follower', 'followers'],
+	},
+	{
+		id: 'failover',
+		term: 'Failover',
+		meaning:
+			'When a broken part’s job is taken over by a copy that was standing by, like a follower made the new leader.',
+		forms: ['failover'],
+	},
+	{
+		id: 'backup',
+		term: 'Backup',
+		meaning:
+			'The data saved as it was at one moment, and kept somewhere else, so it can be put back after a mistake or a disaster.',
+		forms: ['backup', 'backups', 'backed up'],
+	},
+	{
+		id: 'consistent-hashing',
+		term: 'Consistent hashing',
+		meaning:
+			'A way to share things out between servers, round a circle, so that adding or removing a server moves only a small share of them.',
+		forms: ['consistent hashing'],
+	},
+	{
+		id: 'uuid',
+		term: 'UUID',
+		meaning:
+			'A random ID, so long that two made anywhere, at any time, are never the same. No one has to hand them out.',
+		forms: ['uuid', 'uuids'],
+	},
+	{
+		id: 'cap',
+		term: 'CAP theorem',
+		meaning:
+			'While the network between copies is broken, a system can keep its copies agreeing, or keep answering everyone, but not both.',
+		forms: ['cap theorem'],
+	},
+	{
+		id: 'eventual-consistency',
+		term: 'Eventually consistent',
+		meaning: 'Copies that may disagree for a moment after a change, and catch up soon after.',
+		like: 'News reaching every town, a little later in the far ones.',
+		forms: ['eventually consistent', 'eventual consistency'],
+	},
+	{
+		id: 'read-your-writes',
+		term: 'Reading your own writes',
+		meaning:
+			'After you change something, you always see your change, even if other people see it a moment later.',
+		forms: ['reading your own writes', 'read your own writes'],
+	},
+	{
+		id: 'split-brain',
+		term: 'Split brain',
+		meaning:
+			'Two parts of a group each think they’re in charge, and both take changes, so their data no longer fits together.',
+		forms: ['split brain'],
+	},
+	{
+		id: 'stateless',
+		term: 'Stateless',
+		meaning:
+			'A server that keeps nothing between requests. What it needs to remember, like your cart, is kept in a shared store, so any copy can answer anyone.',
+		like: 'A bank counter where any clerk can serve you, because your account is in the bank’s records, not in one clerk’s head.',
+		forms: ['stateless'],
+	},
+	{
+		id: 'sticky-sessions',
+		term: 'Sticky sessions',
+		meaning:
+			'The load balancer sends a person to the same copy every time, because that copy remembers them. If it restarts, what it remembered is lost.',
+		forms: ['sticky sessions', 'sticky session'],
+	},
+	{
+		id: 'health-check',
+		term: 'Health check',
+		meaning:
+			'A quick “are you well?” that a load balancer asks each copy every few seconds. A copy that doesn’t answer stops getting requests.',
+		like: 'A teacher taking the register: whoever doesn’t answer isn’t given work.',
+		forms: ['health check', 'health checks'],
+	},
+	{
+		id: 'session',
+		term: 'Session',
+		meaning:
+			'A record that someone has signed in. The app checks it on every request, and deleting it signs them out.',
+		like: 'A wristband at an event: staff check it at every door, and cutting it off means you’re out.',
+		forms: ['session', 'sessions'],
+	},
+	{
+		id: 'webhook',
+		term: 'Webhook',
+		meaning:
+			'A message one system sends to another system’s web address the moment something happens, instead of waiting to be asked.',
+		like: 'A text message from your bank, instead of checking your account again and again.',
+		forms: ['webhook', 'webhooks'],
+	},
+	{
+		id: 'outbox',
+		term: 'Outbox',
+		meaning:
+			'A table where a change saves the messages it needs to send, in the same save as the change. A worker sends them later, so none are lost.',
+		like: 'An office out-tray: letters go when the post is collected, and none are forgotten.',
+		forms: ['outbox'],
+	},
+	{
+		id: 'checkpoint',
+		term: 'Checkpoint',
+		meaning:
+			'A saved note of how far a long job has got, so it can carry on from there after a crash, instead of starting again.',
+		like: 'A bookmark.',
+		forms: ['checkpoint', 'checkpoints'],
+	},
+	{
+		id: 'modular-monolith',
+		term: 'Modular monolith',
+		meaning:
+			'One program, split inside into modules with clear borders. It’s simpler to run than many services, and a module can be moved out later.',
+		forms: ['modular monolith', 'modules', 'module'],
+	},
+	{
+		id: 'deadlock',
+		term: 'Deadlock',
+		meaning:
+			'Two changes each waiting for something the other is holding, so neither can ever finish.',
+		like: 'Two cars on a narrow bridge, each waiting for the other to reverse.',
+		forms: ['deadlock', 'deadlocks'],
 	},
 	{
 		id: 'cdn',

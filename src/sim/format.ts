@@ -3,6 +3,8 @@ export function formatRps(rps: number) {
 	if (rps >= 9_950) return `${Math.round(rps / 1000)}k/s`;
 	if (rps >= 1000) return `${(rps / 1000).toFixed(1).replace(/\.0$/, '')}k/s`;
 	if (rps >= 10 || rps === 0) return `${Math.round(rps)}/s`;
+	// rarer than one every 10 seconds reads better per minute: 1.2/min, not 0.0/s
+	if (rps < 0.1) return `${(rps * 60).toFixed(1).replace(/\.0$/, '')}/min`;
 	return `${rps.toFixed(1)}/s`;
 }
 

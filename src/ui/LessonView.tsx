@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { Diagram } from '@/diagram/Diagram';
+import { resultWithOnly, withOnly } from '@/diagram/layout';
 import { annotate, namesOf } from '@/learn/glossary';
 import { lessonsOf, stepResult, type LessonStep, type Tone } from '@/learn/lessons';
+import type { System } from '@/model/schema';
 import type { SimResult } from '@/sim/engine';
 import { formatMs } from '@/sim/format';
 import { exploreHref, lessonHref, replaceRoute } from '@/route';
@@ -13,6 +15,23 @@ import { buttonSizes, buttonVariants } from './buttonStyles';
 import { Button } from './controls';
 import { cx } from './cx';
 import { ArrowIcon } from './icons';
+
+const drawnSteps = new WeakMap<LessonStep, { system: System; result: SimResult }>();
+
+/** A course step's diagram: only its parts, laid out on their own. Worked out once a step. */
+function drawnStep(system: System, step: LessonStep) {
+	if (!step.focus || !step.result) return null;
+	let drawn = drawnSteps.get(step);
+	if (!drawn) {
+		const keep = new Set(step.focus);
+		drawn = {
+			system: withOnly(system, keep, step.journeys && new Set(step.journeys)),
+			result: resultWithOnly(system, step.result, keep),
+		};
+		drawnSteps.set(step, drawn);
+	}
+	return drawn;
+}
 
 /** A lesson: the diagram and its numbers in the middle, the step explained beside it. */
 export function LessonView({ lessonId, step: asked }: { lessonId: string; step: number }) {
@@ -32,10 +51,12 @@ export function LessonView({ lessonId, step: asked }: { lessonId: string; step: 
 	const paused = useApp((s) => s.paused);
 	const markLearned = useApp((s) => s.markLearned);
 
-	// the diagram runs an ordinary day, or the step's scenario
-	const result = stepResult(system, current.presetId);
+	// the diagram runs an ordinary day, the step's scenario, or (in a course) its own conditions
+	const result = current.result ?? stepResult(system, current.presetId);
 	const edges = new Map(current.edges);
 	const focus = current.focus ? new Set(current.focus) : null;
+	// a course draws only the parts each step is about, laid out on their own
+	const drawn = lesson.track ? drawnStep(system, current) : null;
 
 	const go = (to: number) => replaceRoute(lessonHref(system.id, lesson.id, to));
 	const nextHref = nextLesson ? lessonHref(system.id, nextLesson.id) : exploreHref(system.id);
@@ -77,15 +98,15 @@ export function LessonView({ lessonId, step: asked }: { lessonId: string; step: 
 
 				<DiagramFrame over={<Facts facts={current.facts} />}>
 					<Diagram
-						system={system}
-						result={result}
+						system={drawn?.system ?? system}
+						result={drawn?.result ?? result}
 						edges={edges}
 						journeyId={current.journeyId}
-						focus={focus}
-						zoom={focus}
+						focus={drawn ? null : focus}
+						zoom={drawn ? null : focus}
 						selected={selected}
 						onSelect={select}
-						detail={current.presetId ? 'load' : 'none'}
+						detail={current.presetId || current.result ? 'load' : 'none'}
 						badges={current.showCopies ?? false}
 						paused={paused}
 						title={`${system.name}: ${current.title}. Every part is a button.`}
@@ -238,7 +259,13 @@ function StepCard({
 					<a
 						href={exploreHref(system.id)}
 						onClick={() => {
-							if (action.presetId) setUp(action.presetId, action.journeyId ?? null);
+							if (action.presetId || action.conditions) {
+								setUp(
+									action.presetId ?? null,
+									action.journeyId ?? null,
+									action.conditions,
+								);
+							}
 						}}
 						className={cx(
 							'mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg',

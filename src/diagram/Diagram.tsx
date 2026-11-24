@@ -245,10 +245,11 @@ export function Diagram({
 			project(maxX, minZ),
 			project(maxX, maxZ),
 			project(minX, maxZ),
-			...regions.flatMap((r): Pt[] => [
-				project(regionLeft, r.top),
-				project(regionRight, r.bottom),
-			]),
+			// a region's name tag sits on its top edge: leave clear room above it, not a sliver
+			...regions.flatMap((r): Pt[] => {
+				const [x, edge] = project(regionLeft, r.top);
+				return [[x, edge - 1.2], project(regionRight, r.bottom)];
+			}),
 			...parts.map((p) => p.labelAt),
 			...labels.flatMap((l) => [
 				[l.x - l.width / 2, l.y - l.height] as Pt,
@@ -260,8 +261,16 @@ export function Diagram({
 		],
 		bare ? 0.6 : 1.1,
 	);
-	// room at the bottom for the zoom buttons, so they don't cover the last row's names
-	if (!bare) whole.h += 1.4;
+	// room at the top for the numbers floating there, and at the bottom for the zoom
+	// buttons, so neither covers the drawing until you move it
+	const roomAbove = (box: Box) => (bare ? 0 : box.h * 0.14);
+	if (!bare) {
+		const above = roomAbove(whole);
+		whole.y -= above;
+		whole.h += above + 1.4;
+		// a picture of a few parts isn't blown up to fill the screen
+		grow(whole, 18, 15);
+	}
 	const zoomed = parts.filter((p) => zoom?.has(p.component.id));
 	/**
 	 * A zoomed view that reaches the top edge of a region box takes in all of
@@ -271,10 +280,11 @@ export function Diagram({
 		let top = box.y;
 		for (const region of regions) {
 			const edge = project(regionLeft, region.top)[1];
-			if (top < edge + 0.5 && top > edge - 0.9) top = edge - 0.9;
+			if (top < edge + 0.5 && top > edge - 1.8) top = edge - 1.8;
 		}
-		// and, like the whole picture, room at the bottom for the zoom buttons
-		return { ...box, y: top, h: box.h + box.y - top + (bare ? 0 : 1.4) };
+		// and, like the whole picture, room for the numbers above and the zoom buttons below
+		const above = roomAbove(box);
+		return { ...box, y: top - above, h: box.h + box.y - top + above + (bare ? 0 : 1.4) };
 	};
 	// the names of the rows being zoomed in on stay in view too
 	const zoomedRows = new Set(zoomed.map((p) => p.component.layer));
@@ -938,15 +948,30 @@ function boxAround(points: Pt[], pad: number): Box {
 	return { x, y, w: Math.max(...xs) + pad - x, h: Math.max(...ys) + pad - y };
 }
 
-/** A zoomed-in box: no smaller than half the whole picture, and never past its edges. */
+/**
+ * A zoomed-in box: no smaller than half the whole picture, nor so small that a
+ * couple of parts fill the screen, and never past its edges.
+ */
 function within(box: Box, whole: Box): Box {
-	const w = Math.min(whole.w, Math.max(box.w, whole.w * 0.5));
-	const h = Math.min(whole.h, Math.max(box.h, whole.h * 0.5));
+	const w = Math.min(whole.w, Math.max(box.w, whole.w * 0.5, 18));
+	const h = Math.min(whole.h, Math.max(box.h, whole.h * 0.5, 15));
 	const cx = box.x + box.w / 2;
 	const cy = box.y + box.h / 2;
 	const x = Math.min(whole.x + whole.w - w, Math.max(whole.x, cx - w / 2));
 	const y = Math.min(whole.y + whole.h - h, Math.max(whole.y, cy - h / 2));
 	return { x, y, w, h };
+}
+
+/** Makes a box at least this big, around the same middle. */
+function grow(box: Box, w: number, h: number) {
+	if (box.w < w) {
+		box.x -= (w - box.w) / 2;
+		box.w = w;
+	}
+	if (box.h < h) {
+		box.y -= (h - box.h) / 2;
+		box.h = h;
+	}
 }
 
 const formatBox = (b: Box) => [b.x, b.y, b.w, b.h].map((n) => n.toFixed(2)).join(' ');

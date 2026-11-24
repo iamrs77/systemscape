@@ -103,6 +103,14 @@ Explore freely lists what `explain` says, most serious first, and offers a fix b
 
 Each step says what the diagram shows: which parts are lit, which calls are drawn and which one is being explained, and the scenario it runs.
 
+### The basics: a hand-written course
+
+The basics teach ideas rather than a product, so their lessons are written by hand, in tracks (`system.course`, built by `courseLessons` in `learn/course.ts`). The basics system is a small shop app holding every design its lessons compare: the same "look at a product" journey straight to the server, through a load balancer, with a cache, from a read copy. Those alternatives are switched off on an ordinary day (`journeyTraffic` 0), so Explore freely starts on the simple design.
+
+A call can be more work than an ordinary request: a hop's `work` (20 for a search that reads every row, 30 for an upload passing through a server) multiplies the load it puts on the part it calls, and the time it takes. That's how the lessons show an index, a database built for writing, or uploads clogging the servers.
+
+Each step names the parts to show, the journey to draw (and, with `draw`, others beside it), and its `Conditions` (`sim/scenario.ts`): which journeys run, the traffic, what's down, copies, bigger servers (`scale`), a cache's hit rate, and the safety features. The step's numbers are worked out by running the simulation under them, so the text and the facts can't drift apart. Its diagram is laid out with only those parts and journeys (`withOnly` in `diagram/layout.ts`), so a two-part step is a clean two-part picture, not two lit parts among faint ones, and a design that's switched off can't change how a call is drawn. Each lesson ends by opening Explore freely under the same conditions.
+
 ### Words, explained
 
 `src/learn/glossary.ts` is one list of the words system design uses (request, cache, shard, circuit breaker…), each with a one-line meaning and, where it helps, an everyday comparison. `annotate(texts, names)` finds them in a card's text, whole words only and longest phrase first, and marks the first time each appears; journey names are left alone ("Request a ride" isn't a request), but the words in a part's name are explained ("Driver location **index**"). The panels underline those words, and tapping one opens its meaning beside it.

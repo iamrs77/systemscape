@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { lessonsOf } from '@/learn/lessons';
 import { exploreHref, lessonHref, type Mode } from '@/route';
 import { useApp, useSystem } from '@/store';
@@ -13,6 +13,14 @@ export function CourseNav({ mode }: { mode: Mode }) {
 	const [open, setOpen] = useState(false);
 
 	const isLearned = (id: string) => learned.includes(`${system.id}/${id}`);
+	// a hand-written course comes in tracks; a system's own lessons are one list
+	const groups: { title: string; lessons: typeof lessons }[] = [];
+	for (const lesson of lessons) {
+		const title = lesson.track?.name ?? 'Lessons';
+		const group = groups.find((g) => g.title === title);
+		if (group) group.lessons.push(lesson);
+		else groups.push({ title, lessons: [lesson] });
+	}
 	const lessonsDone = lessons.filter((l) => isLearned(l.id)).length;
 	const total = lessons.length;
 	const done = lessonsDone;
@@ -50,20 +58,26 @@ export function CourseNav({ mode }: { mode: Mode }) {
 					open ? 'block' : 'hidden',
 				)}
 			>
-				<Group title="Lessons" count={`${lessonsDone}/${lessons.length}`}>
-					{lessons.map((lesson, i) => (
-						<Item
-							key={lesson.id}
-							href={lessonHref(system.id, lesson.id)}
-							current={mode.kind === 'learn' && mode.lessonId === lesson.id}
-							done={isLearned(lesson.id)}
-							mark={String(i + 1).padStart(2, '0')}
-							onPick={() => setOpen(false)}
-						>
-							{lesson.title}
-						</Item>
-					))}
-				</Group>
+				{groups.map((group) => (
+					<Group
+						key={group.title}
+						title={group.title}
+						count={`${group.lessons.filter((l) => isLearned(l.id)).length}/${group.lessons.length}`}
+					>
+						{group.lessons.map((lesson) => (
+							<Item
+								key={lesson.id}
+								href={lessonHref(system.id, lesson.id)}
+								current={mode.kind === 'learn' && mode.lessonId === lesson.id}
+								done={isLearned(lesson.id)}
+								mark={String(lessons.indexOf(lesson) + 1).padStart(2, '0')}
+								onPick={() => setOpen(false)}
+							>
+								{lesson.title}
+							</Item>
+						))}
+					</Group>
+				))}
 				<Group title="Practice">
 					<Item
 						href={exploreHref(system.id)}
@@ -170,9 +184,15 @@ function Item({
 	onPick(): void;
 	children: string;
 }) {
+	// the lesson you're on stays in view, however long the list
+	const link = useRef<HTMLAnchorElement>(null);
+	useEffect(() => {
+		if (current) link.current?.scrollIntoView?.({ block: 'nearest' });
+	}, [current]);
 	return (
 		<li>
 			<a
+				ref={link}
 				href={href}
 				aria-current={current ? 'page' : undefined}
 				onClick={onPick}

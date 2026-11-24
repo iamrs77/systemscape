@@ -5,9 +5,9 @@ import { edgeKey, journeyComponents } from '@/diagram/layout';
 import { lessonsOf, stepInput } from '@/learn/lessons';
 import type { System } from '@/model/schema';
 import { simulate } from '@/sim/engine';
-import { systemHref } from '@/route';
+import { lessonHref, systemHref } from '@/route';
 import { startingJourney, useApp } from '@/store';
-import { comingSoon, systems } from '@/systems';
+import { basics, comingSoon, systems } from '@/systems';
 import { SectionTitle } from './controls';
 import { ArrowIcon, GitHubIcon } from './icons';
 import { Logo, REPO_URL } from './TopBar';
@@ -21,7 +21,7 @@ const how = [
 	},
 	{
 		title: 'See it break',
-		text: 'Each lesson ends on a busy night. See what slows down, what fails, and how one failure spreads to other parts.',
+		text: 'Each lesson ends with something going wrong: a rush, or a part breaking. See what slows down, what fails, and how one failure spreads to other parts.',
 	},
 	{
 		title: 'Fix it yourself',
@@ -65,6 +65,26 @@ export function Home() {
 						time. See what each part does, how a request moves between them, and what
 						breaks when everyone uses the app at once.
 					</p>
+				</section>
+
+				<section aria-labelledby="basics-title" className="mb-12">
+					<SectionTitle id="basics-title">Start here: the basics</SectionTitle>
+					<p className="mt-1 max-w-2xl text-sm text-slate-600">
+						The ideas every system below is built from, one at a time, on a small shop
+						app.
+					</p>
+					<ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+						{(basics.course ?? []).map((track, i) => (
+							<li key={track.id}>
+								<TrackCard
+									number={i + 1}
+									id={track.id}
+									name={track.name}
+									tagline={track.tagline}
+								/>
+							</li>
+						))}
+					</ul>
 				</section>
 
 				<section aria-labelledby="systems-title">
@@ -118,8 +138,9 @@ export function Home() {
 			<footer className="border-t border-slate-200">
 				<div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-4 gap-y-1 px-4 py-5 text-xs text-slate-500 sm:px-6">
 					<p>
-						These are simplified designs, based on public talks and engineers’ blog
-						posts. They are not any company’s real system.
+						Most of these are simplified designs, based on public talks and engineers’
+						blog posts, not any company’s real system. Stockroom is the real design of
+						my own app.
 					</p>
 					<a
 						href={REPO_URL}
@@ -139,6 +160,62 @@ export function Home() {
  * A system you can learn, the same size as one still to come: a small
  * drawing of it, what it is, what's in the course, and how far you've got.
  */
+function TrackCard({
+	number,
+	id,
+	name,
+	tagline,
+}: {
+	number: number;
+	id: string;
+	name: string;
+	tagline: string;
+}) {
+	const lessons = lessonsOf(basics).filter((l) => l.track?.id === id);
+	const learned = useApp(
+		(s) => lessons.filter((l) => s.learned.includes(`${basics.id}/${l.id}`)).length,
+	);
+	const started = learned > 0;
+	return (
+		<article className="surface group relative flex h-full flex-col p-4 transition-shadow hover:shadow-md">
+			<span
+				className="grid size-7 place-items-center rounded-full border border-slate-200 bg-cyan-200 text-xs font-semibold"
+				aria-hidden="true"
+			>
+				{number}
+			</span>
+			<h3 className="mt-3 text-sm font-semibold">
+				{/* the whole card is the link: this stretches it over the card */}
+				<a
+					href={lessonHref(basics.id, lessons[0]!.id)}
+					className="after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-cyan-600"
+				>
+					{name}
+				</a>
+			</h3>
+			<p className="mt-0.5 flex-1 text-sm text-slate-600">{tagline}</p>
+			<p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+				<span>
+					{started
+						? `${learned} of ${lessons.length} lessons done`
+						: `${lessons.length} lessons`}
+				</span>
+				<span
+					className="ml-auto inline-flex items-center gap-1 font-medium text-cyan-700"
+					aria-hidden="true"
+				>
+					{started ? 'Continue' : 'Start'}
+					<ArrowIcon
+						width={12}
+						height={12}
+						className="transition-transform group-hover:translate-x-0.5"
+					/>
+				</span>
+			</p>
+		</article>
+	);
+}
+
 function SystemCard({ system }: { system: System }) {
 	const lessons = lessonsOf(system);
 	const learned = useApp(
@@ -186,7 +263,7 @@ function SystemCard({ system }: { system: System }) {
 					<span>
 						{started
 							? `${learned} of ${lessons.length} lessons done`
-							: `${lessons.length} lessons · ${system.components.length} parts`}
+							: `${lessons.length} lessons · ${system.components.length} parts${system.basis === 'real' ? ' · real design' : ''}`}
 					</span>
 					<span
 						className="ml-auto inline-flex items-center gap-1 font-medium text-cyan-700"

@@ -4,7 +4,9 @@
 
 Learn how big apps are built, one step at a time. Pick an app you use every day and take its backend apart: what each part does, how a request travels through them, and what breaks when everyone shows up at once.
 
-There are three systems so far: a **ride-hailing app** like Uber or Ola, a **video streaming app** like Netflix or Hotstar, and **UPI payments** through an app like PhonePe or Google Pay. Two more are on the way: a stock trading app, and [Stockroom](https://github.com/iamrs77/stockroom), my own inventory app.
+There are four systems so far: a **ride-hailing app** like Uber or Ola, a **video streaming app** like Netflix or Hotstar, **UPI payments** through an app like PhonePe or Google Pay, and [**Stockroom**](https://github.com/iamrs77/stockroom), my own inventory app, drawn from its real code. A stock trading app is on the way.
+
+New to system design? Start with **the basics**: five short tracks (how requests work, performance, scaling, storing data, and data on many machines) that teach the ideas every system here is built from, one at a time, on a small shop app. Latency, queueing, load balancers, caches, CDNs, autoscaling, SQL and NoSQL, indexes, transactions, replication, sharding, consistent hashing, unique IDs, CAP and leader election each get a lesson you can watch happen.
 
 ![A lesson following a ride request: the diagram zoomed in on the call being explained, and the step's explanation beside it, with what's actually sent](docs/screenshots/overview.webp)
 
@@ -12,6 +14,7 @@ There are three systems so far: a **ride-hailing app** like Uber or Ola, a **vid
 
 Architecture diagrams are static: they show the boxes, not what happens when Friday night arrives or the cache falls over. Systemscape puts a live model behind the diagram, and walks you through it.
 
+- **Learn the ideas first.** The basics teach one idea per lesson, on a shop app that grows as you go: each step draws only the parts it's about, changes one thing (the traffic, a bigger server, a cache, a second database) and shows the numbers that change with it.
 - **Start with the big picture.** The first lesson goes through the system a row at a time, from the apps at the top to the data at the bottom: what each part is for, and why the design needs it.
 - **Follow a request.** Each journey, like requesting a ride, is a lesson with a step per call: who calls whom, who waits, what's optional or happens in the background, and where the time goes. The diagram zooms in on each call as you go.
 - **See what breaks.** Each lesson ends on a night that shows something new: too much traffic (a sudden rainstorm, New Year's Eve), or a part breaking (the maps, the surge cache, the payment provider). What gets overloaded, how the failure spreads, what keeps working, and how many requests still succeed.
