@@ -401,6 +401,38 @@ export const glossary: Term[] = [
 		forms: ['load balancer', 'load balancers'],
 	},
 	{
+		id: 'encoding',
+		term: 'Encoding',
+		meaning:
+			'Turning a video into a different size or quality. One film is encoded into many versions, so every screen and internet speed gets one that fits.',
+		like: 'Printing the same photo as a passport photo, a postcard and a poster.',
+		forms: ['encoding', 'encode', 'encoded', 'encoder', 'encoders'],
+	},
+	{
+		id: 'adaptive-streaming',
+		term: 'Adaptive streaming',
+		meaning:
+			'The app picks a sharper or smaller version of the next few seconds to suit the internet speed right now. So a slow moment makes the picture softer, not stop.',
+		like: 'A driver changing gear on a hill, instead of stalling.',
+		forms: ['adaptive streaming'],
+	},
+	{
+		id: 'file-storage',
+		term: 'File storage',
+		meaning:
+			'A place for big files like videos and pictures, kept safely and cheaply. It holds far more than a database, but sends things more slowly.',
+		like: 'A big warehouse: it holds everything, but it’s far from the shops.',
+		forms: ['file storage', 'video storage', 'storage'],
+	},
+	{
+		id: 'scale-ahead',
+		term: 'Scaling ahead',
+		meaning:
+			'Adding copies before a big event, because autoscaling can’t add them fast enough once everyone arrives at once.',
+		like: 'Opening every ticket counter before the match ends, not after the crowd arrives.',
+		forms: ['scaling ahead', 'scale ahead', 'ahead of time', 'pre-scaling'],
+	},
+	{
 		id: 'cdn',
 		term: 'CDN',
 		meaning:

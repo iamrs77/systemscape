@@ -91,6 +91,9 @@ export const rideHailing: SystemInput = {
 			detail: 'A closed app can’t keep a live connection open. So messages like “Your driver has arrived” are sent as notifications. Only Apple and Google can deliver one to a phone, so every app sends them through their services. They set the limits, and now and then they’re slow.',
 		},
 	],
+	rows: {
+		edge: 'Requests from the apps come in through here. It checks who is asking, and turns away anyone who sends too many requests. It also keeps a live connection open to each phone.',
+	},
 	components: [
 		{
 			id: 'rider-app',
@@ -1143,7 +1146,7 @@ export const rideHailing: SystemInput = {
 			id: 'sudden-rain',
 			name: 'Sudden rain',
 			description:
-				'It starts raining hard at rush hour. Within minutes, five times as many people want a ride, and four times as many check prices.',
+				'It starts raining hard at rush hour. Within minutes, about seven times as many people want a ride, and six times as many check prices.',
 			traffic: 1.5,
 			journeyTraffic: { 'request-ride': 5, 'check-price': 4 },
 			sudden: true,

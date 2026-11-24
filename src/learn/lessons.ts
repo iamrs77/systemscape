@@ -75,7 +75,7 @@ const tierIntro: Record<Layer, { title: string; text: string }> = {
 	},
 	edge: {
 		title: 'The front door',
-		text: 'Requests from the apps come in through here. It checks who is asking, and turns away anyone who sends too many requests. It also keeps a live connection open to each phone.',
+		text: 'Requests from the apps come in through here. It checks who is asking, and turns away anyone who sends too many requests.',
 	},
 	services: {
 		title: 'The services',
@@ -143,10 +143,22 @@ export function stepInput(system: System, presetId: string | undefined): SimInpu
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/**
+ * The journey to show first: the one with the most calls, from the system's
+ * first app (the riders', the viewers'), rather than a back-office tool's.
+ */
+export function mainJourney(system: System) {
+	const app = system.components.find((c) => c.kind === 'client')?.id;
+	const fromApp = system.journeys.filter((j) => j.hops[0]!.from === app);
+	return [...(fromApp.length ? fromApp : system.journeys)].sort(
+		(a, b) => b.hops.length - a.hops.length,
+	)[0]!;
+}
+
 function overview(system: System): Lesson {
 	const used = layers.filter((layer) => system.components.some((c) => c.layer === layer));
 	// the example of calls and requests: the journey with the most calls
-	const example = [...system.journeys].sort((a, b) => b.hops.length - a.hops.length)[0]!;
+	const example = mainJourney(system);
 	const copies = system.components.find(
 		(c) => (c.kind === 'service' || c.kind === 'gateway') && c.instances > 1,
 	);
@@ -180,8 +192,8 @@ function overview(system: System): Lesson {
 				title: 'How to read it',
 				body: [
 					copies
-						? `Each block is one part. Its icon shows what kind of part it is, and a cylinder is a database. A badge like ×${copies.instances} beside **${copies.name}** means ${copies.instances} copies of it are running. When it gets busy, more copies share the work.`
-						: 'Each block is one part. Its icon shows what kind of part it is, and a cylinder is a database. A badge like ×3 means three copies of it are running. When it gets busy, more copies share the work.',
+						? `Each block is one part. Its icon shows what kind of part it is, and a stack of discs is a database. A badge like ×${copies.instances} beside **${copies.name}** means ${copies.instances} copies of it are running. When it gets busy, more copies share the work.`
+						: 'Each block is one part. Its icon shows what kind of part it is, and a stack of discs is a database. A badge like ×3 means three copies of it are running. When it gets busy, more copies share the work.',
 					`An arrow means one part calls another. The dots moving along the arrows are requests. Here, they are requests for “${example.name}”. A dashed arrow is background work that nobody waits for.`,
 				],
 				facts: [],
@@ -201,7 +213,7 @@ function overview(system: System): Lesson {
 				return {
 					title: tierIntro[layer].title,
 					body: [
-						tierIntro[layer].text,
+						system.rows[layer] ?? tierIntro[layer].text,
 						...parts.map((c) => `**${c.name}**: ${lowerFirst(c.summary)}`),
 					],
 					facts: [{ label: 'In this row', value: plural(parts.length, 'part') }],
@@ -357,15 +369,15 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 				title: load.preset.name,
 				body: [load.preset.description, ...load.story],
 				facts: [
-					...(load.preset.traffic !== 1 || load.preset.down.length === 0
+					...(load.busier !== 1 || load.preset.down.length === 0
 						? [
 								{
 									label: 'Traffic',
-									value: `${load.preset.traffic}×`,
+									value: `${load.busier}×`,
 									hint:
-										load.preset.traffic === 1
+										load.busier === 1
 											? 'as busy as normal'
-											: `${load.preset.traffic} times as busy as normal`,
+											: `${load.busier} times as busy as normal`,
 								},
 							]
 						: []),
@@ -611,5 +623,9 @@ function underLoad(system: System, journey: Journey, normal: JourneyState) {
 		(a, b) => Number(b.componentId === culprit) - Number(a.componentId === culprit),
 	);
 	const fixes = fixesFor(system, worst.input, worst.result, ranked).flat().slice(0, 3);
-	return { preset: worst.preset, state: worst.state, healthy, story, culprit, fixes };
+	// how much busier this journey is than normal: all traffic, and its own share of the rush
+	const busier =
+		Math.round(worst.preset.traffic * (worst.preset.journeyTraffic[journey.id] ?? 1) * 100) /
+		100;
+	return { preset: worst.preset, state: worst.state, healthy, story, culprit, fixes, busier };
 }

@@ -8,11 +8,7 @@ import { simulate } from '@/sim/engine';
 import { systemHref } from '@/route';
 import { startingJourney, useApp } from '@/store';
 import { comingSoon, systems } from '@/systems';
-import { basisLabel } from '@/theme';
-import { Facts } from './bits';
-import { buttonSizes, buttonVariants } from './buttonStyles';
-import { Badge, SectionTitle } from './controls';
-import { cx } from './cx';
+import { SectionTitle } from './controls';
 import { ArrowIcon, GitHubIcon } from './icons';
 import { Logo, REPO_URL } from './TopBar';
 
@@ -73,7 +69,7 @@ export function Home() {
 
 				<section aria-labelledby="systems-title">
 					<SectionTitle id="systems-title">Systems</SectionTitle>
-					<ul className="mt-3 space-y-5">
+					<ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 						{systems.map((system) => (
 							<li key={system.id}>
 								<SystemCard system={system} />
@@ -139,7 +135,10 @@ export function Home() {
 	);
 }
 
-/** A system you can learn: a drawing of it, what it is, what's in the course, and how far you've got. */
+/**
+ * A system you can learn, the same size as one still to come: a small
+ * drawing of it, what it is, what's in the course, and how far you've got.
+ */
 function SystemCard({ system }: { system: System }) {
 	const lessons = lessonsOf(system);
 	const learned = useApp(
@@ -160,8 +159,8 @@ function SystemCard({ system }: { system: System }) {
 	}, [system]);
 
 	return (
-		<article className="surface group relative grid overflow-hidden lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-			<div className="diagram-bg aspect-[16/11] border-b border-slate-200 p-3 lg:aspect-auto lg:min-h-96 lg:border-r lg:border-b-0">
+		<article className="surface group relative flex h-full items-center gap-4 p-4 transition-shadow hover:shadow-md sm:block">
+			<div className="diagram-bg h-20 w-28 shrink-0 overflow-hidden rounded-xl border border-slate-100 p-1 sm:h-24 sm:w-full">
 				<Diagram
 					system={system}
 					result={preview.result}
@@ -172,61 +171,35 @@ function SystemCard({ system }: { system: System }) {
 					title={`${system.name}, drawn as a diagram`}
 				/>
 			</div>
-			<div className="flex flex-col p-5 sm:p-7">
-				<div>
-					<Badge>{basisLabel[system.basis]}</Badge>
-				</div>
-				<h3 className="mt-3 text-2xl font-semibold tracking-tight">
+			<div className="min-w-0 sm:mt-3">
+				<h3 className="text-sm font-semibold">
 					{/* the whole card is the link: this stretches it over the card */}
 					<a
 						href={systemHref(system.id)}
-						className="after:absolute after:inset-0 after:rounded-[14px] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-cyan-600"
+						className="after:absolute after:inset-0 after:rounded-[16px] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-cyan-600"
 					>
 						{system.name}
 					</a>
 				</h3>
-				<p className="mt-2 text-slate-600">{system.tagline}</p>
-				<div className="mt-5">
-					<Facts
-						facts={[
-							{ label: 'Lessons', value: String(lessons.length) },
-							{ label: 'Parts', value: String(system.components.length) },
-							{ label: 'Journeys', value: String(system.journeys.length) },
-						]}
-					/>
-				</div>
-				<ol className="mt-5 space-y-1 text-sm text-slate-600">
-					{lessons.slice(0, 4).map((lesson, i) => (
-						<li key={lesson.id} className="flex gap-2">
-							<span className="text-slate-400">{String(i + 1).padStart(2, '0')}</span>
-							{lesson.title}
-						</li>
-					))}
-					{lessons.length > 4 && (
-						<li className="pl-7 text-slate-400">and {lessons.length - 4} more</li>
-					)}
-				</ol>
-				{started && (
-					<p className="mt-4 text-xs text-cyan-700">
-						{learned} of {lessons.length} lessons done
-					</p>
-				)}
-				<span
-					className={cx(
-						'mt-auto inline-flex items-center gap-1.5 self-start rounded-lg pt-0',
-						buttonSizes.md,
-						buttonVariants.primary,
-						'mt-6',
-					)}
-					aria-hidden="true"
-				>
-					{started ? 'Continue' : 'Start learning'}
-					<ArrowIcon
-						width={14}
-						height={14}
-						className="transition-transform group-hover:translate-x-0.5"
-					/>
-				</span>
+				<p className="mt-0.5 text-sm text-slate-600">{system.tagline}</p>
+				<p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+					<span>
+						{started
+							? `${learned} of ${lessons.length} lessons done`
+							: `${lessons.length} lessons · ${system.components.length} parts`}
+					</span>
+					<span
+						className="ml-auto inline-flex items-center gap-1 font-medium text-cyan-700"
+						aria-hidden="true"
+					>
+						{started ? 'Continue' : 'Start learning'}
+						<ArrowIcon
+							width={12}
+							height={12}
+							className="transition-transform group-hover:translate-x-0.5"
+						/>
+					</span>
+				</p>
 			</div>
 		</article>
 	);

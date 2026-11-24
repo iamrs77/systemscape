@@ -135,6 +135,11 @@ export const systemSchema = z.object({
 		.array(z.object({ title: text, url: z.url(), publisher: text.optional() }))
 		.default([]),
 	decisions: z.array(z.object({ title: text, detail: text })).default([]),
+	/**
+	 * What a row of the diagram is for, in this system, for the big-picture
+	 * lesson. Rows left out get a general sentence.
+	 */
+	rows: z.partialRecord(z.enum(layers), text).default({}),
 	components: z.array(componentSchema).min(2),
 	journeys: z.array(journeySchema).min(1),
 	presets: z.array(presetSchema).min(1),

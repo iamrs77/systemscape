@@ -204,14 +204,17 @@ export function Diagram({
 		.map((p) => labelFor(p, detail));
 
 	const { minX, maxX, minZ, maxZ } = layout.bounds;
+	// the row names line up in one column, left of every row, where no arrow goes
+	const namesAt = Math.min(...layout.rows.map((row) => row.left)) - 0.95;
 	const tiers = layout.rows.map((row) => {
 		const count = system.components.filter((c) => c.layer === row.layer).length;
-		const at = project(row.left - 0.95, row.z);
+		const at = project(namesAt, row.z);
 		return { row, count, at, text: layerLabel[row.layer].toUpperCase() };
 	});
 
 	// a box round what this company runs, and one round other companies' systems
-	const tierLeft = Math.min(...tiers.map((t) => t.at[0] - t.text.length * 0.5 * CHAR - 0.5));
+	// a row name's capitals, with their letter spacing, are about 0.4 wide each
+	const tierLeft = Math.min(...tiers.map((t) => t.at[0] - t.text.length * 0.4 - 0.5));
 	const regionLeft = (bare ? minX : Math.min(minX, tierLeft)) - 0.3;
 	const regionRight = maxX + 0.3;
 	const regions = layout.boundary

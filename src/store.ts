@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { System } from '@/model/schema';
 import { simulate, type SimInput, type SimResult } from '@/sim/engine';
 import type { Change } from '@/sim/fixes';
+import { mainJourney } from '@/learn/lessons';
 import { MAX_INSTANCES, scenarioConditions, scenarioInput } from '@/sim/scenario';
 import { getSystem, systems } from '@/systems';
 
@@ -85,7 +86,7 @@ function prefersReducedMotion() {
 
 /** The journey a system starts by following: the one with the most steps, so the most to show. */
 export function startingJourney(system: System) {
-	return [...system.journeys].sort((a, b) => b.hops.length - a.hops.length)[0]!;
+	return mainJourney(system);
 }
 
 /** A system as it starts: its first preset, with nothing changed, following its starting journey. */

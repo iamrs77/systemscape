@@ -1,6 +1,6 @@
 # Adding a system
 
-A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the diagram, the lessons, the simulation and the panels all come from the data. `src/systems/rideHailing.ts` is the complete example.
+A system is one TypeScript file in `src/systems`, exporting a plain object. There's no code to write: the diagram, the lessons, the simulation and the panels all come from the data. `src/systems/rideHailing.ts` and `src/systems/videoStreaming.ts` are complete examples.
 
 ## 1. Describe it
 
@@ -13,11 +13,14 @@ export const videoStreaming: SystemInput = {
 	description: ['What it does, in a paragraph or two.', 'What’s simplified.'],
 	sources: [{ title: '…', url: 'https://…', publisher: 'Netflix Tech Blog, 2023' }],
 	decisions: [{ title: 'Videos are cut into short chunks', detail: 'Why, and the cost.' }],
+	rows: { edge: 'What the front door does in this system, if the general sentence doesn’t fit.' },
 	components: [...],
 	journeys: [...],
 	presets: [...],
 };
 ```
+
+`rows` is optional: the big-picture lesson introduces each row of the diagram with a general sentence, and `rows` replaces it where this system needs its own (the video app's front door has a second door, the CDN).
 
 Use `basis: 'inspired'` and say so in the description unless the design is truly yours to show. Every fact in `decisions` and in the components' text should come from a listed source, or be clearly a simplification ([ADR 0005](adr/0005-honest-about-sources.md)).
 

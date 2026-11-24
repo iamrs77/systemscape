@@ -4,7 +4,7 @@
 
 Learn how big apps are built, one step at a time. Pick an app you use every day and take its backend apart: what each part does, how a request travels through them, and what breaks when everyone shows up at once.
 
-The first system is a **ride-hailing app** like Uber or Ola. Four more are on the way: a stock trading app, video streaming, UPI payments, and [Stockroom](https://github.com/iamrs77/stockroom), my own inventory app.
+There are two systems so far: a **ride-hailing app** like Uber or Ola, and a **video streaming app** like Netflix or Hotstar. Three more are on the way: a stock trading app, UPI payments, and [Stockroom](https://github.com/iamrs77/stockroom), my own inventory app.
 
 ![A lesson following a ride request: the diagram zoomed in on the call being explained, and the step's explanation beside it, with what's actually sent](docs/screenshots/overview.webp)
 

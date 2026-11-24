@@ -1,19 +1,16 @@
 import { parseSystem } from '@/model/parseSystem';
 import type { System } from '@/model/schema';
 import { rideHailing } from './rideHailing';
+import { videoStreaming } from './videoStreaming';
 
 /** The systems you can explore, checked once when the app loads. */
-export const systems: readonly System[] = [parseSystem(rideHailing)];
+export const systems: readonly System[] = [parseSystem(rideHailing), parseSystem(videoStreaming)];
 
 /** Systems still being built: listed so visitors know what's coming. */
 export const comingSoon = [
 	{
 		name: 'Stock trading app',
 		tagline: 'Live prices and order matching for millions of traders.',
-	},
-	{
-		name: 'Video streaming',
-		tagline: 'Getting a film to millions of screens without buffering.',
 	},
 	{
 		name: 'UPI payments',
