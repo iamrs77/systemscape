@@ -80,7 +80,15 @@ export const rideHailing: SystemInput = {
 		},
 		{
 			title: 'An event stream connects everything else',
-			detail: 'Every driver location and every trip change is added to an event stream. Other parts read from it: surge pricing, reports and fraud checks. None of them slow down the trip itself.',
+			detail: 'Every driver location and every trip change is added to an event stream. Other parts read from it: surge pricing, payments and notifications. None of them slow down the trip itself.',
+		},
+		{
+			title: 'Past trips are read from a copy',
+			detail: 'Riders look at old trips and receipts far more often than trips change. So those reads go to a read-only copy of the trip database, a moment behind it. The main database is left free to save new trips. The cost: a trip that just ended can take a second to show up.',
+		},
+		{
+			title: 'Notifications go through Apple and Google',
+			detail: 'A closed app can’t keep a live connection open. So messages like “Your driver has arrived” are sent as notifications. Only Apple and Google can deliver one to a phone, so every app sends them through their services. They set the limits, and now and then they’re slow.',
 		},
 	],
 	components: [
@@ -214,7 +222,7 @@ export const rideHailing: SystemInput = {
 				'Works out how long a driver would take to reach a place. It uses real roads, and how busy they are right now.',
 			why: 'A driver who looks close on the map can be far away by road. So arrival time gives better matches than straight-line distance.',
 			onFailure:
-				'Dispatch uses the straight-line distance instead, and riders don’t see an arrival time. It’s worse, but rides still work.',
+				'Arrival times disappear: riders don’t see how soon their driver comes. Dispatch picks drivers by straight-line distance instead. It’s worse, but rides still work.',
 			scaling:
 				'Working out routes takes a lot of computing. It autoscales, but each copy handles far fewer requests than most services.',
 			capacityPerInstance: 900,
@@ -262,7 +270,7 @@ export const rideHailing: SystemInput = {
 			layer: 'async',
 			summary:
 				'A long list of everything that happens, in order: every driver location and every trip change. Other parts read it when they’re ready, so nobody waits for them.',
-			why: 'Surge pricing, payments, reports and fraud checks all need to know what happened. They read it here, so they never slow a trip down.',
+			why: 'Surge pricing, payments and notifications all need to know what happened. They read it here, so they never slow a trip down.',
 			onFailure:
 				'Background work stops. Surge prices stay as they are, and charges wait. Trips themselves carry on.',
 			scaling:
@@ -285,6 +293,23 @@ export const rideHailing: SystemInput = {
 			capacityPerInstance: 40_000,
 			instances: 2,
 			maxInstances: 10,
+			latencyMs: 15,
+		},
+		{
+			id: 'notification-service',
+			name: 'Notification service',
+			kind: 'notifier',
+			layer: 'async',
+			summary:
+				'Sends messages to people’s phones, like “Your driver has arrived”. They show up even when the app is closed.',
+			why: 'A closed app can’t keep a live connection open. A notification is the only way to reach it.',
+			onFailure:
+				'Messages stop arriving. Riders miss “Your driver has arrived” and have to open the app to check. Rides carry on.',
+			scaling:
+				'It autoscales. Messages wait in the event stream until it catches up, so a burst only delays them a little.',
+			capacityPerInstance: 3_000,
+			instances: 2,
+			maxInstances: 20,
 			latencyMs: 15,
 		},
 		{
@@ -334,6 +359,22 @@ export const rideHailing: SystemInput = {
 			latencyMs: 8,
 		},
 		{
+			id: 'trip-history',
+			name: 'Trip history',
+			kind: 'database',
+			layer: 'data',
+			summary:
+				'A read-only copy of the trip database, a moment behind it. Past trips and receipts are read from here. This kind of copy is called a read replica.',
+			why: 'People look at old trips far more often than trips change. Reading from a copy keeps that work off the trip database, which is busy saving new trips.',
+			onFailure:
+				'Riders can’t see past trips or receipts for a while. Booking, riding and paying carry on.',
+			scaling:
+				'When more people read, add another copy. Each copy gets every change from the trip database a moment later.',
+			capacityPerInstance: 3_000,
+			instances: 2,
+			latencyMs: 5,
+		},
+		{
 			id: 'payment-provider',
 			name: 'Payment provider',
 			kind: 'external',
@@ -348,10 +389,27 @@ export const rideHailing: SystemInput = {
 			instances: 1,
 			latencyMs: 250,
 		},
+		{
+			id: 'push-provider',
+			name: 'Apple & Google push',
+			kind: 'external',
+			layer: 'external',
+			summary:
+				'The services Apple and Google run to deliver a notification to an iPhone or an Android phone.',
+			why: 'Only Apple and Google can wake a phone and show a notification on it. Every app has to send its notifications through them.',
+			onFailure:
+				'Notifications arrive late, or not at all. The app still works when it’s open.',
+			scaling:
+				'It belongs to Apple and Google, so we can’t make it bigger. They also limit how many notifications each app can send.',
+			capacityPerInstance: 20_000,
+			instances: 1,
+			latencyMs: 120,
+		},
 	],
 	journeys: [
 		{
 			id: 'share-location',
+			scenario: 'new-year',
 			name: 'Drivers share their location',
 			description:
 				'Every working driver’s phone sends its location every few seconds. In a 2015 talk, Uber said every 4 seconds. This is by far the busiest journey.',
@@ -439,6 +497,7 @@ export const rideHailing: SystemInput = {
 		},
 		{
 			id: 'check-price',
+			scenario: 'cache-restart',
 			name: 'See the price',
 			description:
 				'A rider types where they want to go and sees the price. Riders check prices far more often than they book.',
@@ -529,6 +588,7 @@ export const rideHailing: SystemInput = {
 		},
 		{
 			id: 'request-ride',
+			scenario: 'sudden-rain',
 			name: 'Request a ride',
 			description:
 				'A rider asks for a ride. Dispatch finds nearby drivers, puts them in order by how soon they can arrive, and offers the ride.',
@@ -678,6 +738,7 @@ export const rideHailing: SystemInput = {
 				'While a rider waits, the driver’s location and arrival time are sent to their map every few seconds.',
 			rps: 6_000,
 			person: 'Rohit',
+			scenario: 'maps-down',
 			story: 'Rohit has a driver. For the next 3 minutes he watches Arjun’s car move towards him on the map.',
 			hops: [
 				{
@@ -743,6 +804,35 @@ export const rideHailing: SystemInput = {
 					share: 0.25,
 					optional: true,
 				},
+				{
+					from: 'realtime-gateway',
+					to: 'notification-service',
+					label: 'Say the driver has arrived',
+					example: {
+						says: 'Arjun’s car reaches the pickup point. Rohit’s app might be closed, so the gateway asks for a notification too.',
+						data: {
+							to: 'Rohit',
+							message: '“Arjun has arrived. White Swift, KA 01 AB 1234”',
+						},
+					},
+					mode: 'async',
+					share: 0.04,
+				},
+				{
+					from: 'notification-service',
+					to: 'push-provider',
+					label: 'Send it through Apple',
+					example: {
+						says: 'Rohit has an iPhone, so the message goes through Apple. It shows on his lock screen, even with the app closed.',
+						data: {
+							phone: 'Rohit’s iPhone',
+							answer: 'delivered',
+						},
+					},
+					mode: 'async',
+					share: 0.04,
+					retries: 1,
+				},
 			],
 		},
 		{
@@ -751,6 +841,7 @@ export const rideHailing: SystemInput = {
 			description:
 				'The driver ends the trip. The fare is saved straight away, and the rider is charged in the background.',
 			person: 'Arjun',
+			scenario: 'payments-down',
 			story: 'At 9:24 pm, Arjun drops Rohit off on 100 Feet Road, Indiranagar, and taps End trip.',
 			rps: 250,
 			hops: [
@@ -848,6 +939,189 @@ export const rideHailing: SystemInput = {
 					mode: 'async',
 					retries: 3,
 				},
+				{
+					from: 'trip-db',
+					to: 'trip-history',
+					label: 'Copy it to the trip history',
+					example: {
+						says: 'A moment later, the finished trip is copied to the read-only trip history, where Rohit will look for it.',
+						data: {
+							trip: 'T-48213',
+							delay: 'about 1 second',
+						},
+					},
+					mode: 'async',
+				},
+			],
+		},
+		{
+			id: 'see-trips',
+			name: 'See past trips',
+			description:
+				'A rider opens their past trips and receipts. These are read from a copy of the trip database, not the main one.',
+			rps: 400,
+			person: 'Rohit',
+			scenario: 'cache-restart',
+			story: 'The next morning, Rohit opens his past trips to find the receipt for last night’s ride.',
+			hops: [
+				{
+					from: 'rider-app',
+					to: 'load-balancer',
+					label: 'Open past trips',
+					example: {
+						says: 'Rohit’s app asks for his recent trips.',
+						data: {
+							rider: 'Rohit',
+							show: 'last 10 trips',
+						},
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'api-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'The load balancer passes it to the least busy copy of the API gateway.',
+						data: {
+							to: 'API gateway, copy 2 of 3',
+						},
+					},
+				},
+				{
+					from: 'api-gateway',
+					to: 'trip-service',
+					label: 'Get the rider’s trips',
+					example: {
+						says: 'The gateway checks it’s really Rohit, and asks for his trips.',
+						data: {
+							rider: 'Rohit',
+							trips: 'last 10',
+						},
+					},
+				},
+				{
+					from: 'trip-service',
+					to: 'trip-history',
+					label: 'Read them from the copy',
+					example: {
+						says: 'The trips are read from the trip history, not the busy trip database.',
+						data: {
+							answer: '10 trips, newest first. T-48213: ₹218, paid',
+						},
+					},
+				},
+			],
+		},
+		{
+			id: 'cancel-ride',
+			name: 'Cancel a ride',
+			description:
+				'A rider cancels before the driver arrives. The trip is marked as cancelled, and the driver is free for the next ride.',
+			rps: 30,
+			person: 'Rohit',
+			story: 'Another evening, Rohit books a ride, then a friend offers him a lift. He taps Cancel, twice by mistake.',
+			hops: [
+				{
+					from: 'rider-app',
+					to: 'load-balancer',
+					label: 'Cancel the ride',
+					example: {
+						says: 'Rohit’s app asks to cancel his trip. He tapped twice, so the request goes twice.',
+						data: {
+							rider: 'Rohit',
+							trip: 'T-51907',
+						},
+					},
+				},
+				{
+					from: 'load-balancer',
+					to: 'api-gateway',
+					label: 'Pick the least busy copy',
+					example: {
+						says: 'The load balancer passes each request to the least busy copy of the API gateway.',
+						data: {
+							to: 'API gateway, copy 1 of 3',
+						},
+					},
+				},
+				{
+					from: 'api-gateway',
+					to: 'trip-service',
+					label: 'Cancel the trip',
+					example: {
+						says: 'The second request finds the trip already cancelled, so it changes nothing. Cancelling is idempotent: doing it twice is the same as doing it once.',
+						data: {
+							trip: 'T-51907',
+							answer: 'cancelled, and the second tap changes nothing',
+						},
+					},
+				},
+				{
+					from: 'trip-service',
+					to: 'trip-db',
+					label: 'Mark it cancelled',
+					retries: 2,
+					example: {
+						says: 'The trip is saved as cancelled. If saving fails, it’s tried again, which is safe for the same reason.',
+						data: {
+							trip: 'T-51907',
+							status: 'cancelled',
+						},
+					},
+				},
+				{
+					from: 'trip-service',
+					to: 'event-stream',
+					label: 'Post to the event stream',
+					example: {
+						says: 'A note goes on the event stream: trip T-51907 is cancelled.',
+						data: {
+							event: 'trip cancelled',
+							trip: 'T-51907',
+						},
+					},
+					mode: 'async',
+				},
+				{
+					from: 'event-stream',
+					to: 'dispatch-service',
+					label: 'Free the driver',
+					example: {
+						says: 'Dispatch marks the driver, Kiran, as free again, so he can get the next ride offer.',
+						data: {
+							driver: 'Kiran',
+							status: 'free',
+						},
+					},
+					mode: 'async',
+				},
+				{
+					from: 'event-stream',
+					to: 'notification-service',
+					label: 'Tell the driver',
+					example: {
+						says: 'A notification tells Kiran the ride is off, in case his app is in the background.',
+						data: {
+							to: 'Kiran',
+							message: '“Rohit cancelled the ride”',
+						},
+					},
+					mode: 'async',
+				},
+				{
+					from: 'notification-service',
+					to: 'push-provider',
+					label: 'Send it through Google',
+					example: {
+						says: 'Kiran has an Android phone, so the message goes through Google.',
+						data: {
+							phone: 'Kiran’s Android',
+							answer: 'delivered',
+						},
+					},
+					mode: 'async',
+					retries: 1,
+				},
 			],
 		},
 	],
@@ -881,6 +1155,30 @@ export const rideHailing: SystemInput = {
 			traffic: 2.5,
 			journeyTraffic: { 'request-ride': 6, 'check-price': 5, 'track-driver': 2 },
 			sudden: true,
+		},
+		{
+			id: 'maps-down',
+			name: 'Maps go down',
+			description:
+				'An ordinary evening, but the service that works out arrival times has stopped working.',
+			traffic: 1,
+			down: ['eta-service'],
+		},
+		{
+			id: 'cache-restart',
+			name: 'Cache restarts',
+			description:
+				'A busy Friday night, and the surge cache restarts empty. Every price check has to do the slow work again.',
+			traffic: 2.5,
+			down: ['surge-cache'],
+		},
+		{
+			id: 'payments-down',
+			name: 'Payments down',
+			description:
+				'An ordinary evening, but the payment provider has an outage. It can’t take any charges.',
+			traffic: 1,
+			down: ['payment-provider'],
 		},
 	],
 };

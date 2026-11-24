@@ -94,10 +94,14 @@ presets: [
 	{ id: 'normal', name: 'Normal evening', description: '…', traffic: 1 },
 	{ id: 'final', name: 'Cup final', description: '…', traffic: 3,
 	  journeyTraffic: { 'start-watching': 8 }, sudden: true },
+	{ id: 'cdn-down', name: 'The CDN goes down', description: '…', traffic: 1,
+	  down: ['edge-cache'] },
 ],
 ```
 
-The first preset is where the system starts. Each journey's lesson ends on the scenario that's hardest on it, so give the system at least one where something breaks.
+The first preset is where the system starts. A scenario can make more traffic (`traffic`, and `journeyTraffic` for some journeys), make it arrive too fast for autoscaling (`sudden`), or take parts down (`down`).
+
+Each journey's lesson ends on a scenario: the one named by the journey's `scenario`, or else the one that's hardest on it. Name one per journey when you can, so each lesson shows something different: a rush, a cache restarting, an outside provider's outage.
 
 ## 5. Register it and check it
 

@@ -8,15 +8,17 @@ import {
 	type Layer,
 	type System,
 } from '@/model/schema';
-import { defaultInput, simulate, type SimInput, type SimResult } from '@/sim/engine';
+import { simulate, type JourneyState, type SimInput, type SimResult } from '@/sim/engine';
+import { fixesFor } from '@/sim/fixes';
 import { feelOfMs, feelOfShare, formatMs, formatRps, formatShare, perMinute } from '@/sim/format';
 import { explain, SLOW_MS } from '@/sim/insights';
+import { scenarioInput } from '@/sim/scenario';
 
 /**
  * Lessons, made from a system's data, so every system gets them without
  * writing any: first the big picture, a row of the diagram at a time; then
  * one lesson per journey, a step per call, ending with what happens under
- * load and a chance to try it yourself. Pure, so every system's lessons are tested.
+ * load (or with a part broken) and a chance to try it yourself. Pure.
  */
 
 export type Tone = 'plain' | 'wait' | 'background' | 'warn';
@@ -95,13 +97,7 @@ const tierIntro: Record<Layer, { title: string; text: string }> = {
 
 /** The scenario every lesson starts from: an ordinary day. */
 function ordinary(system: System): SimInput {
-	const preset = system.presets[0]!;
-	return {
-		...defaultInput,
-		traffic: preset.traffic,
-		journeyTraffic: preset.journeyTraffic,
-		sudden: preset.sudden,
-	};
+	return scenarioInput(system.presets[0]!);
 }
 
 export function lessonsFor(system: System): Lesson[] {
@@ -142,13 +138,7 @@ export function stepResult(system: System, presetId: string | undefined): SimRes
 /** The conditions a lesson step's diagram runs: an ordinary day, or the step's scenario. */
 export function stepInput(system: System, presetId: string | undefined): SimInput {
 	const preset = system.presets.find((p) => p.id === presetId);
-	if (!preset) return ordinary(system);
-	return {
-		...defaultInput,
-		traffic: preset.traffic,
-		journeyTraffic: preset.journeyTraffic,
-		sudden: preset.sudden,
-	};
+	return preset ? scenarioInput(preset) : ordinary(system);
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -295,7 +285,7 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 		.filter(({ hop }) => hop.mode === 'sync')
 		.sort((a, b) => b.wait - a.wait)[0];
 
-	const load = underLoad(system, journey);
+	const load = underLoad(system, journey, state);
 	const hasBackground = journey.hops.some((h) => h.mode === 'async');
 	const allFlowing = keys.map((key): [string, EdgeLook] => [key, 'flow']);
 
@@ -367,11 +357,23 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 				title: load.preset.name,
 				body: [load.preset.description, ...load.story],
 				facts: [
-					{
-						label: 'Traffic',
-						value: `${load.preset.traffic}×`,
-						hint: `${load.preset.traffic} times as busy as normal`,
-					},
+					...(load.preset.traffic !== 1 || load.preset.down.length === 0
+						? [
+								{
+									label: 'Traffic',
+									value: `${load.preset.traffic}×`,
+									hint:
+										load.preset.traffic === 1
+											? 'as busy as normal'
+											: `${load.preset.traffic} times as busy as normal`,
+								},
+							]
+						: []),
+					...load.preset.down.map((id) => ({
+						label: 'Not working',
+						value: part(id).name,
+						hint: 'down for now',
+					})),
 					{
 						label: 'Succeed',
 						value: formatShare(load.state.success),
@@ -384,7 +386,12 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 					},
 				],
 				tags: load.healthy
-					? [{ text: 'It keeps working', tone: 'plain' }]
+					? [
+							{ text: 'It keeps working', tone: 'plain' },
+							...(load.state.backgroundFailure > 0.01
+								? [{ text: 'Background work fails', tone: 'warn' as const }]
+								: []),
+						]
 					: [{ text: 'Something breaks', tone: 'warn' }],
 				focus: involved,
 				edges: allFlowing,
@@ -395,7 +402,10 @@ function journeyLesson(system: System, journey: Journey, result: SimResult): Les
 			{
 				title: 'Try it yourself',
 				body: [
-					`Now try it in Explore freely. It opens on ${load.preset.name}, following “${journey.name}”. Add copies of the part that’s struggling, or turn on a safety feature. Then watch what changes.`,
+					`Now try it in Explore freely. It opens on ${load.preset.name}, following “${journey.name}”.`,
+					load.fixes.length > 0
+						? `Things to try: ${orList(load.fixes.map((f) => `**${f.label}**`))}. Then watch the numbers and the diagram change.`
+						: 'Push the traffic up, take a part down, or turn a safety feature off. Then watch what changes.',
 					'When something breaks, the panel beside the diagram tells you why. It also offers a fix you can try with one click.',
 				],
 				facts: [],
@@ -500,16 +510,27 @@ function goodToKnow(hop: Hop, to: Component, firstMeeting: boolean): LessonStep[
 	return { title: `How ${to.name} grows`, text: to.scaling };
 }
 
-/** The scenario that's hardest on a journey, and what happens to it. */
-function underLoad(system: System, journey: Journey) {
-	const candidates = system.presets.slice(1).length ? system.presets.slice(1) : system.presets;
+/** “A”, “A or B”, “A, B or C”. */
+function orList(items: string[]) {
+	return items.length < 2
+		? (items[0] ?? '')
+		: `${items.slice(0, -1).join(', ')} or ${items.at(-1)}`;
+}
+
+/**
+ * The scenario a journey's lesson ends on: the one the system names for it,
+ * or else the one that's hardest on it. And what happens to it, why, and
+ * what to try.
+ */
+function underLoad(system: System, journey: Journey, normal: JourneyState) {
+	const named = system.presets.find((p) => p.id === journey.scenario);
+	const candidates = named
+		? [named]
+		: system.presets.slice(1).length
+			? system.presets.slice(1)
+			: system.presets;
 	const runs = candidates.map((preset) => {
-		const input: SimInput = {
-			...defaultInput,
-			traffic: preset.traffic,
-			journeyTraffic: preset.journeyTraffic,
-			sudden: preset.sudden,
-		};
+		const input = scenarioInput(preset);
 		const result = simulate(system, input);
 		return { preset, input, result, state: result.journeys[journey.id]! };
 	});
@@ -534,10 +555,50 @@ function underLoad(system: System, journey: Journey) {
 	const causes = insights
 		.filter((i) => !aboutJourney(i.text))
 		.sort((a, b) => Number(b.componentId === culprit) - Number(a.componentId === culprit));
+	// its own background work failing is worth saying even when nobody notices
+	const background = insights.filter(
+		(i) => i.text.startsWith(`${journey.name}:`) && worst.state.backgroundFailure > 0.01,
+	);
+	// trouble elsewhere that this journey doesn't touch
+	const elsewhere = system.components.filter((c) => {
+		const status = worst.result.components[c.id]?.status;
+		return (status === 'down' || status === 'overloaded') && !involved.has(c.id);
+	});
 	const who = whoWaits(system, journey);
+	// still working, but much slower: say where the time goes
+	const slower =
+		worst.state.latencyMs > normal.latencyMs * 3 &&
+		worst.state.latencyMs - normal.latencyMs > 150;
+	const waitingOn = journey.hops
+		.map((hop, i) => ({ hop, wait: worst.state.hops[i]!.waitMs }))
+		.filter(({ hop }) => hop.mode === 'sync')
+		.sort((a, b) => b.wait - a.wait)[0]?.hop.to;
+	const waitingOnName = waitingOn && system.components.find((c) => c.id === waitingOn)?.name;
+	const waitingOnDown = waitingOn && worst.result.components[waitingOn]?.status === 'down';
 	const story = healthy
 		? [
-				`“${journey.name}” keeps working. ${formatShare(worst.state.success)} of requests still succeed, in about ${formatMs(worst.state.latencyMs)}. Autoscaling adds copies as the traffic grows.`,
+				slower
+					? `“${journey.name}” keeps working, but it’s slower. ${capitalise(who)} waits about ${formatMs(worst.state.latencyMs)}, instead of ${formatMs(normal.latencyMs)}.`
+					: `“${journey.name}” keeps working. ${formatShare(worst.state.success)} of requests still succeed, in about ${formatMs(worst.state.latencyMs)}.`,
+				...(slower && waitingOnName
+					? [
+							waitingOnDown
+								? `Most of that time is spent waiting for **${waitingOnName}**, which is down. Each call waits until it gives up. That’s called a timeout.`
+								: `Most of that time is spent waiting for **${waitingOnName}**.`,
+						]
+					: []),
+				...(elsewhere.length > 0
+					? [
+							`It doesn’t use ${orList(elsewhere.map((c) => `**${c.name}**`)).replace(/ or /, ' and ')}, which ${elsewhere.length > 1 ? 'are' : 'is'} in trouble right now.`,
+						]
+					: []),
+				...[...background, ...causes].slice(0, 2).map((i) => i.text),
+				...(elsewhere.length === 0 &&
+				causes.length === 0 &&
+				background.length === 0 &&
+				worst.preset.traffic > 1
+					? ['Autoscaling adds copies as the traffic grows.']
+					: []),
 			]
 		: [
 				worst.state.success < 0.99
@@ -545,5 +606,10 @@ function underLoad(system: System, journey: Journey) {
 					: `“${journey.name}” still works, but ${who} now waits about ${formatMs(worst.state.latencyMs)}. That’s ${feelOfMs(worst.state.latencyMs)}.`,
 				...(causes.length ? causes : insights).slice(0, 2).map((i) => i.text),
 			];
-	return { preset: worst.preset, state: worst.state, healthy, story, culprit };
+	// what to try in Explore freely: the fixes for this journey's trouble, the culprit's first
+	const ranked = [...insights].sort(
+		(a, b) => Number(b.componentId === culprit) - Number(a.componentId === culprit),
+	);
+	const fixes = fixesFor(system, worst.input, worst.result, ranked).flat().slice(0, 3);
+	return { preset: worst.preset, state: worst.state, healthy, story, culprit, fixes };
 }

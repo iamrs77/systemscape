@@ -17,6 +17,8 @@ export const iconPaths: Record<IconName, string> = {
 	// events flowing on
 	stream: 'M3 7h15 M14.5 3.5 18 7l-3.5 3.5 M3 17h15 M14.5 13.5 18 17l-3.5 3.5',
 	storage: 'M3 7.5 12 3l9 4.5-9 4.5z M3 7.5v9l9 4.5 9-4.5v-9 M12 12v9',
+	// a bell: a message for someone's phone
+	bell: 'M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z M10 21a2 2 0 0 0 4 0',
 	// a bank: someone else's system
 	external: 'M3 9.5 12 4l9 5.5 M5.5 10v7.5 M10 10v7.5 M14 10v7.5 M18.5 10v7.5 M3 20.5h18',
 	// one stream of requests, spread three ways

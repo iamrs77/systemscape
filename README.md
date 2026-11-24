@@ -14,13 +14,13 @@ Architecture diagrams are static: they show the boxes, not what happens when Fri
 
 - **Start with the big picture.** The first lesson goes through the system a row at a time, from the apps at the top to the data at the bottom: what each part is for, and why the design needs it.
 - **Follow a request.** Each journey, like requesting a ride, is a lesson with a step per call: who calls whom, who waits, what's optional or happens in the background, and where the time goes. The diagram zooms in on each call as you go.
-- **See what breaks.** Each lesson ends on the night that's hardest on its journey (Friday night, a sudden rainstorm, New Year's Eve): what gets overloaded, how the failure spreads, and how many requests still succeed.
+- **See what breaks.** Each lesson ends on a night that shows something new: too much traffic (a sudden rainstorm, New Year's Eve), or a part breaking (the maps, the surge cache, the payment provider). What gets overloaded, how the failure spreads, what keeps working, and how many requests still succeed.
 - **Fix it yourself.** Each lesson ends by opening Explore freely on that night. Push the traffic up, take parts down, switch safety features on and off. Beside the diagram, every problem says what's failing and why, with a fix to try in one click: add copies of what's overloaded, bring back what's down, turn on circuit breakers. Full screen gives the diagram the whole screen, with the side panel there or hidden.
 - **Check the sources.** The design is based on engineering talks and posts, listed with each system, and says plainly that it's a simplified version, not any company's actual system.
 
-| What breaks on New Year's Eve                                                                    | Explore freely, with a fix for each problem                                                        |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| ![A lesson's last steps: dispatch overloaded, failures spreading](docs/screenshots/journey.webp) | ![Explore freely on New Year's Eve, each problem with a fix to try](docs/screenshots/explore.webp) |
+| What breaks in a sudden rainstorm                                                                                                  | Explore freely, with a fix for each problem                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| ![A lesson's ending: in a sudden rainstorm, Dispatch is overloaded and half the ride requests fail](docs/screenshots/journey.webp) | ![Explore freely on New Year's Eve, each problem with a fix to try](docs/screenshots/explore.webp) |
 
 ## How it works
 

@@ -170,6 +170,7 @@ export type IconName =
 	| 'queue'
 	| 'stream'
 	| 'storage'
+	| 'bell'
 	| 'external'
 	| 'cdn'
 	| 'phone'
@@ -190,6 +191,7 @@ export const kindPalette: Record<ComponentKind, Palette> = {
 	queue: { top: '#f8e8ad', left: '#f0da8e', right: '#e4ca71' },
 	stream: { top: '#f8e8ad', left: '#f0da8e', right: '#e4ca71' },
 	storage: { top: '#e0d6f6', left: '#cdc0ef', right: '#b8a9e4' },
+	notifier: { top: '#cdeef0', left: '#b0e2e6', right: '#93d3d9' },
 	external: { top: '#f6d3d9', left: '#eebcc5', right: '#e2a4b0' },
 };
 
@@ -269,6 +271,8 @@ export function piecesFor(component: Component): Piece[] {
 			return [block(2.4, 1.5, 0.8, 0.5, 'stream', { plate: 0.55 })];
 		case 'storage':
 			return [block(2, 1.8, 1.05, 0.5, 'storage')];
+		case 'notifier':
+			return [block(2, 1.9, 0.9, 0.62, 'bell')];
 		case 'external':
 			return [block(2.1, 1.9, 1.2, 0.58, 'external')];
 	}

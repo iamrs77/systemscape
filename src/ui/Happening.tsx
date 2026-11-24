@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { annotate, namesOf } from '@/learn/glossary';
+import { fixesFor } from '@/sim/fixes';
 import type { Insight } from '@/sim/insights';
 import { explain } from '@/sim/insights';
-import { MAX_INSTANCES, useApp, useSystem } from '@/store';
+import { useApp, useSystem } from '@/store';
 import { cx } from './cx';
 import { Explained } from './Explained';
 
@@ -19,13 +20,8 @@ const spoken: Record<Insight['level'], string> = {
 	good: 'All good',
 };
 
-/** Autoscaling and hand-added copies aim to keep each part at most this busy. */
-const COMFORTABLE = 0.7;
-
 /** Shown before "Show all": the most serious come first. */
 const FIRST = 5;
-
-type Fix = { label: string; run(): void };
 
 /**
  * What's going on, in plain words and most serious first, with a fix to try
@@ -36,72 +32,16 @@ export function WhatsHappening() {
 	const system = useSystem();
 	const input = useApp((s) => s.input);
 	const result = useApp((s) => s.result);
-	const setInstances = useApp((s) => s.setInstances);
-	const setDown = useApp((s) => s.setDown);
-	const setOption = useApp((s) => s.setOption);
+	const applyChange = useApp((s) => s.applyChange);
 	const select = useApp((s) => s.select);
 	const [all, setAll] = useState(false);
 
 	const insights = useMemo(() => explain(system, input, result), [system, input, result]);
+	const fixes = fixesFor(system, input, result, insights);
 	const texts = annotate(
 		insights.map((i) => i.text),
 		namesOf(system),
 	);
-
-	// each fix is offered once, beside the first problem it would help
-	const offered = new Set<string>();
-	const fixesFor = (insight: Insight): Fix[] => {
-		const fixes: Fix[] = [];
-		const component = system.components.find((c) => c.id === insight.componentId);
-		const state = component && result.components[component.id];
-		if (insight.retryStorm && input.retries) {
-			fixes.push({ label: 'Turn off retries', run: () => setOption('retries', false) });
-		}
-		if (component && state?.status === 'down') {
-			fixes.push({
-				label: `Bring back ${component.name}`,
-				run: () => setDown(component.id, false),
-			});
-			if (!input.circuitBreakers) {
-				fixes.push({
-					label: 'Turn on circuit breakers',
-					run: () => setOption('circuitBreakers', true),
-				});
-			}
-		} else if (component && state?.status === 'overloaded') {
-			if (component.kind === 'external') {
-				if (!input.circuitBreakers) {
-					fixes.push({
-						label: 'Turn on circuit breakers',
-						run: () => setOption('circuitBreakers', true),
-					});
-				}
-			} else {
-				const needed = Math.min(
-					MAX_INSTANCES,
-					Math.ceil((state.instances * state.utilization) / COMFORTABLE),
-				);
-				if (needed > state.instances) {
-					const more = needed - state.instances;
-					fixes.push({
-						label: `Add ${more} ${more === 1 ? 'copy' : 'copies'} of ${component.name}`,
-						run: () => setInstances(component.id, needed),
-					});
-				}
-				if (!input.autoscale && component.maxInstances !== undefined) {
-					fixes.push({
-						label: 'Turn on autoscaling',
-						run: () => setOption('autoscale', true),
-					});
-				}
-			}
-		}
-		return fixes.filter((fix) => {
-			if (offered.has(fix.label)) return false;
-			offered.add(fix.label);
-			return true;
-		});
-	};
 
 	return (
 		<section aria-labelledby="happening-title" className="surface p-4">
@@ -113,7 +53,7 @@ export function WhatsHappening() {
 			</h2>
 			<ul className="mt-2.5 space-y-3" aria-live="polite">
 				{insights.slice(0, all ? insights.length : FIRST).map((insight, i) => {
-					const fixes = fixesFor(insight);
+					const mine = fixes[i]!;
 					return (
 						<li key={insight.text} className="flex gap-2.5 text-sm">
 							<span
@@ -128,13 +68,13 @@ export function WhatsHappening() {
 								<p className="text-slate-700">
 									<Explained pieces={texts[i]!} />
 								</p>
-								{(fixes.length > 0 || insight.componentId) && (
+								{(mine.length > 0 || insight.componentId) && (
 									<div className="mt-1.5 flex flex-wrap gap-1.5">
-										{fixes.map((fix) => (
+										{mine.map((fix) => (
 											<button
 												key={fix.label}
 												type="button"
-												onClick={fix.run}
+												onClick={() => applyChange(fix.change)}
 												className="press rounded-lg border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-800 hover:bg-cyan-100"
 											>
 												{fix.label}

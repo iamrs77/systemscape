@@ -59,6 +59,14 @@ export function parseSystem(input: SystemInput): System {
 			if (!journeyIds.has(journey))
 				problems.push(`preset ${preset.id}: no journey "${journey}"`);
 		}
+		for (const part of preset.down) {
+			if (!ids.has(part)) problems.push(`preset ${preset.id}: no component "${part}"`);
+		}
+	}
+	const presetIds = new Set(system.presets.map((p) => p.id));
+	for (const journey of system.journeys) {
+		if (journey.scenario && !presetIds.has(journey.scenario))
+			problems.push(`journey ${journey.id}: no scenario "${journey.scenario}"`);
 	}
 
 	if (problems.length > 0) {

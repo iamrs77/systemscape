@@ -31,6 +31,7 @@ export const kindLabel: Record<ComponentKind, string> = {
 	queue: 'Queue',
 	stream: 'Event stream',
 	storage: 'File storage',
+	notifier: 'Notifications',
 	external: 'Outside provider',
 };
 

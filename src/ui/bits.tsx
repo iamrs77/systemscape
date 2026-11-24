@@ -136,15 +136,21 @@ export function DiagramFrame({
 	return (
 		<div
 			className={cx(
-				'surface diagram-bg relative flex flex-col overflow-hidden lg:h-auto lg:min-h-0 lg:flex-1',
-				full
-					? // on the whole screen, a finger drags the diagram rather than the page
-						'h-[85dvh] [&_svg]:touch-none'
-					: 'h-[60dvh] min-h-[360px]',
+				'surface diagram-bg relative flex flex-col overflow-hidden lg:min-h-0 lg:flex-1',
+				// on the whole screen, a finger drags the diagram rather than the page
+				full &&
+					'h-[calc(100dvh-1rem)] sm:h-[calc(100dvh-1.5rem)] lg:h-auto [&_svg]:touch-none',
 			)}
 		>
 			{over && <div className="px-3 pt-3">{over}</div>}
-			<div className="min-h-0 flex-1">
+			{/* on a phone the diagram keeps its own height, whatever is below it */}
+			<div
+				className={
+					full
+						? 'min-h-0 flex-1'
+						: 'h-[55dvh] min-h-[300px] shrink-0 lg:h-auto lg:min-h-0 lg:flex-1'
+				}
+			>
 				<div className="h-full px-2 pt-2">{children}</div>
 			</div>
 			{controls}

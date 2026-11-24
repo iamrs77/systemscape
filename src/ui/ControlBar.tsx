@@ -51,25 +51,49 @@ export function ControlBar() {
 			aria-label="What you can change"
 			className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-200 bg-card px-3 py-2"
 		>
-			<div role="group" aria-label="Which evening" className="flex flex-wrap gap-1">
-				{system.presets.map((p) => (
-					<button
-						key={p.id}
-						type="button"
-						aria-pressed={p.id === presetId}
-						title={p.description}
-						onClick={() => applyPreset(p.id)}
-						className={cx(
-							chip,
-							p.id === presetId
-								? 'border-cyan-600 bg-cyan-600 text-white'
-								: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
-						)}
+			{/* busy evenings, then the ones where a part breaks */}
+			{[
+				{
+					label: 'Which evening',
+					presets: system.presets.filter((p) => p.down.length === 0),
+				},
+				{
+					label: 'Something breaks',
+					presets: system.presets.filter((p) => p.down.length > 0),
+				},
+			]
+				.filter((group) => group.presets.length > 0)
+				.map((group, i) => (
+					<div
+						key={group.label}
+						role="group"
+						aria-label={group.label}
+						className="flex flex-wrap items-center gap-1"
 					>
-						{p.name}
-					</button>
+						{i > 0 && (
+							<span className="mr-0.5 text-[11px] text-slate-500" aria-hidden="true">
+								Breaks:
+							</span>
+						)}
+						{group.presets.map((p) => (
+							<button
+								key={p.id}
+								type="button"
+								aria-pressed={p.id === presetId}
+								title={p.description}
+								onClick={() => applyPreset(p.id)}
+								className={cx(
+									chip,
+									p.id === presetId
+										? 'border-cyan-600 bg-cyan-600 text-white'
+										: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+								)}
+							>
+								{p.name}
+							</button>
+						))}
+					</div>
 				))}
-			</div>
 
 			<div className="flex min-w-48 flex-1 items-center gap-2.5">
 				<label htmlFor={sliderId} className="shrink-0 text-xs text-slate-500">

@@ -17,6 +17,7 @@ export const componentKinds = [
 	'queue',
 	'stream',
 	'storage',
+	'notifier',
 	'external',
 ] as const;
 export type ComponentKind = (typeof componentKinds)[number];
@@ -100,6 +101,11 @@ export const journeySchema = z.object({
 	story: text.optional(),
 	/** In the order they happen. Each hop starts from the client or a component reached earlier. */
 	hops: z.array(hopSchema).min(1),
+	/**
+	 * The scenario its lesson ends on, to show what can go wrong with it. By
+	 * default, the one that's hardest on it.
+	 */
+	scenario: id.optional(),
 });
 export type Journey = z.output<typeof journeySchema>;
 
@@ -113,6 +119,8 @@ export const presetSchema = z.object({
 	journeyTraffic: z.record(z.string(), z.number().positive()).default({}),
 	/** Arrives within minutes: autoscaling is too slow to help, only scaling ahead of time does. */
 	sudden: z.boolean().default(false),
+	/** Parts that have stopped working, e.g. a cache that restarted or an outside provider's outage. */
+	down: z.array(id).default([]),
 });
 export type Preset = z.output<typeof presetSchema>;
 

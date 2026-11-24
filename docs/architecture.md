@@ -63,7 +63,7 @@ A system has **components** (a service, a database, a cache...) and **journeys**
 
 A hop can be made by only some requests (`share`), several times per request (`calls`), retried (`retries`), skipped without failing the request (`optional`), handed off without the user waiting (`mode: 'async'`), or happen only when a cache can't answer (`onMiss`). Components have a capacity per instance, a base latency, an instance count, and optionally the most instances autoscaling may add. Caches have a hit rate.
 
-**Scenarios** (presets) multiply the traffic, overall and per journey, and say whether it arrives suddenly.
+**Scenarios** (presets) multiply the traffic, overall and per journey, say whether it arrives suddenly, and can take parts down.
 
 [Adding a system](adding-a-system.md) covers the format in full.
 
@@ -98,8 +98,8 @@ Explore freely lists what `explain` says, most serious first, and offers a fix b
 - **The big picture**: what the system does, how to read the diagram, then a step per row, from the apps down, naming every part in it with what it does.
 - **A lesson per journey**, a step per call, in order: who calls whom and whether anyone waits, what the part being called does and why it's there (the first time it's met), what happens when it fails, and the numbers for that call (calls a second, the time it adds, copies), each with what it means in everyday terms. Optional calls, cache misses, retries and background work each get a note saying what they mean. When the system gives a journey a person and a scene, and a call an example, the lesson follows that person and shows what the call sends.
 - **Where the time goes**: the whole journey, with each call's share of the wait.
-- **Under load**: every scenario is run, and the one that's hardest on this journey is shown, with what the simulation's explanations say went wrong.
-- **Try it yourself**: a link that opens Explore freely on that night, following this journey.
+- **Under load**: the scenario the journey names (or else the one that's hardest on it, found by running each) is shown: how the journey does, what went wrong and why, or what it doesn't depend on, and, when it still works but slowly, which part it's waiting on.
+- **Try it yourself**: a link that opens Explore freely on that night, following this journey, with the fixes to try named (the same fixes the panel beside the diagram offers, from `sim/fixes.ts`).
 
 Each step says what the diagram shows: which parts are lit, which calls are drawn and which one is being explained, and the scenario it runs.
 

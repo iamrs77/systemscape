@@ -1,13 +1,15 @@
 import { create } from 'zustand';
-import type { Preset, System } from '@/model/schema';
-import { defaultInput, simulate, type SimInput, type SimResult } from '@/sim/engine';
+import type { System } from '@/model/schema';
+import { simulate, type SimInput, type SimResult } from '@/sim/engine';
+import type { Change } from '@/sim/fixes';
+import { MAX_INSTANCES, scenarioConditions, scenarioInput } from '@/sim/scenario';
 import { getSystem, systems } from '@/systems';
 
 export type Option = 'autoscale' | 'retries' | 'circuitBreakers' | 'sudden';
 export type Dialog = 'about' | 'glossary' | null;
 
 /** Instances you can set by hand. */
-export const MAX_INSTANCES = 100;
+export { MAX_INSTANCES };
 export const TRAFFIC_RANGE = { min: 0.25, max: 8 } as const;
 
 type State = {
@@ -41,6 +43,8 @@ type Actions = {
 	setUp(presetId: string, journeyId: string | null): void;
 	/** Back to how the evening started. */
 	reset(): void;
+	/** Makes one of the fixes offered for a problem. */
+	applyChange(change: Change): void;
 	/** Marks a lesson of the current system as finished. */
 	markLearned(lessonId: string): void;
 	/** Forgets the finished lessons of the current system. */
@@ -79,14 +83,6 @@ function prefersReducedMotion() {
 	}
 }
 
-function presetInput(preset: Preset): Pick<SimInput, 'traffic' | 'journeyTraffic' | 'sudden'> {
-	return {
-		traffic: preset.traffic,
-		journeyTraffic: preset.journeyTraffic,
-		sudden: preset.sudden,
-	};
-}
-
 /** The journey a system starts by following: the one with the most steps, so the most to show. */
 export function startingJourney(system: System) {
 	return [...system.journeys].sort((a, b) => b.hops.length - a.hops.length)[0]!;
@@ -95,7 +91,7 @@ export function startingJourney(system: System) {
 /** A system as it starts: its first preset, with nothing changed, following its starting journey. */
 function fresh(system: System) {
 	const preset = system.presets[0]!;
-	const input = { ...defaultInput, ...presetInput(preset) };
+	const input = scenarioInput(preset);
 	return {
 		systemId: system.id,
 		presetId: preset.id,
@@ -133,7 +129,7 @@ export const useApp = create<AppState>()((set, get) => {
 			const preset = system().presets.find((p) => p.id === id);
 			if (!preset) return;
 			set({ presetId: id });
-			run({ ...get().input, ...presetInput(preset) });
+			run({ ...get().input, ...scenarioConditions(preset) });
 		},
 
 		setTraffic(traffic) {
@@ -182,13 +178,19 @@ export const useApp = create<AppState>()((set, get) => {
 		setUp(presetId, journeyId) {
 			const preset = system().presets.find((p) => p.id === presetId) ?? system().presets[0]!;
 			set({ presetId: preset.id, journeyId, selected: null });
-			run({ ...defaultInput, ...presetInput(preset) });
+			run(scenarioInput(preset));
 		},
 
 		reset() {
 			const preset =
 				system().presets.find((p) => p.id === get().presetId) ?? system().presets[0]!;
-			run({ ...defaultInput, ...presetInput(preset) });
+			run(scenarioInput(preset));
+		},
+
+		applyChange(change) {
+			if (change.kind === 'copies') get().setInstances(change.componentId, change.instances);
+			else if (change.kind === 'bring-back') get().setDown(change.componentId, false);
+			else get().setOption(change.option, change.on);
 		},
 
 		resetProgress() {
