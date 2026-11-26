@@ -24,4 +24,3 @@ The app worked, but it looked like a default dashboard: grey page, white cards, 
 - Two font packages replace one. The fonts are woff2 files loaded by CSS, not JavaScript.
 - A new system should get a colour in `palette.ts`, or it takes a spare one, and ideally a poster. Neither is required.
 - More things move on the front page. All of it stops for people who ask for reduced motion.
-- The screenshots in `docs/screenshots` show the old look until they're taken again.

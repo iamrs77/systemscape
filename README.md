@@ -8,7 +8,7 @@ There are four systems so far: a **ride-hailing app** like Uber or Ola, a **vide
 
 New to system design? Start with **the fundamentals**: eleven tracks, 66 lessons (how requests work, performance, scaling, storing data, data on many machines, communication, reliability, architecture, security, shipping, and whole systems) that teach the ideas every system here is built from, one at a time, on a small shop app. Each lesson names every common way of doing it, how each works, what it costs, and when to choose it, and shows it happening: latency percentiles and napkin math, load balancing algorithms and layer 4 against layer 7, cache writes and stampedes, CDNs, autoscaling, SQL and the kinds of NoSQL, indexes, storage engines, transactions and isolation levels, replication, quorums, sharding, consistent hashing, unique IDs, CAP, consensus, REST, gRPC and GraphQL, queues, Kafka, WebSockets and webhooks, failover and disaster recovery, retries, circuit breakers, rate limiting algorithms, observability and SLOs, microservices, service discovery, sagas, stream processing, authentication, authorization, encryption, testing and deployments. The last track puts it all together: how to approach a design, then a URL shortener, a news feed and a chat app, built up a piece at a time.
 
-![A lesson following a ride request: the diagram zoomed in on the call being explained, and the step's explanation beside it, with what's actually sent](docs/screenshots/overview.webp)
+![The home page: the fundamentals as a winding path of eleven tracks, each in its own colour, and the four systems, each with a drawn poster](docs/screenshots/home.webp)
 
 ## About
 
@@ -20,6 +20,8 @@ Architecture diagrams are static: they show the boxes, not what happens when Fri
 - **See what breaks.** Each lesson ends on a night that shows something new: too much traffic (a sudden rainstorm, New Year's Eve), or a part breaking (the maps, the surge cache, the payment provider). What gets overloaded, how the failure spreads, what keeps working, and how many requests still succeed.
 - **Fix it yourself.** Each lesson ends by opening Explore freely on that night. Push the traffic up, take parts down, switch safety features on and off. Beside the diagram, every problem says what's failing and why, with a fix to try in one click: add copies of what's overloaded, bring back what's down, turn on circuit breakers. Full screen gives the diagram the whole screen, with the side panel there or hidden.
 - **Check the sources.** The design is based on engineering talks and posts, listed with each system, and says plainly that it's a simplified version, not any company's actual system.
+
+![A lesson following a ride request: the diagram zoomed in on the call being explained, and the step's explanation beside it, with what's actually sent](docs/screenshots/overview.webp)
 
 | What breaks in a sudden rainstorm                                                                                                  | Explore freely, with a fix for each problem                                                        |
 | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
