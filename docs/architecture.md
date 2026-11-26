@@ -1,6 +1,6 @@
 # Architecture
 
-Systemscape is a browser app that teaches how a system is built: it draws the system's architecture as a diagram, runs a simulation behind it, and walks through it in lessons made from the system's data. This document explains how the parts fit, how the simulation works, how the lessons are made and the diagram drawn, and where the limits are. The reasons behind each decision are in the [decision records](adr).
+Systemscape is a browser app that teaches how a system is built: it draws the system's architecture as a diagram, runs a simulation behind it, and walks through it in lessons made from the system's data. This document explains how the parts fit, how the simulation works, how the lessons are made and the diagram drawn, and where the limits are. How it looks (type, colour, the front page, motion) is in [the design document](design.md), and the reasons behind each decision are in the [decision records](adr).
 
 ## Constraints
 
@@ -49,7 +49,7 @@ Everything below the store is a pure function of its inputs: the simulation, the
 | `src/store.ts` | The conditions you've set, the latest result, what's selected and followed, and the lessons you've finished (kept in `localStorage`). Every action that changes the conditions re-runs the simulation.                                            |
 | `src/learn`    | The lessons, made from a system's data, and what each step's diagram runs.                                                                                                                                                                        |
 | `src/diagram`  | The diagram: where each part goes and how calls are routed (`layout.ts`), the projection and block shapes (`geometry.ts`), and the SVG (`Diagram.tsx`).                                                                                           |
-| `src/ui`       | The home page, the course, the lesson and Explore freely screens, and their panels.                                                                                                                                                               |
+| `src/ui`       | The home page, the course, the lesson and Explore freely screens, and their panels. `palette.ts` holds the systems', tracks' and lessons' colours, and `posters.tsx` the drawn posters on the home page ([design](design.md)).                    |
 | `src/route.ts` | Which page you're on, read from the URL's hash: `#/` is the home page, `#/ride-hailing/learn/request-ride/3` a lesson's third step, `/explore` Explore freely ([ADR 0007](adr/0007-hash-routing.md)). The store follows the system the URL names. |
 
 ## The data
@@ -103,9 +103,9 @@ Explore freely lists what `explain` says, most serious first, and offers a fix b
 
 Each step says what the diagram shows: which parts are lit, which calls are drawn and which one is being explained, and the scenario it runs.
 
-### The basics: a hand-written course
+### The fundamentals: a hand-written course
 
-The basics teach ideas rather than a product, so their lessons are written by hand, in tracks (`system.course`, built by `courseLessons` in `learn/course.ts`). The basics system is a small shop app holding every design its lessons compare: the same "look at a product" journey straight to the server, through a load balancer, with a cache, from a read copy. Those alternatives are switched off on an ordinary day (`journeyTraffic` 0), so Explore freely starts on the simple design.
+The fundamentals teach ideas rather than a product, so their lessons are written by hand, in tracks (`system.course`, built by `courseLessons` in `learn/course.ts`). In the code the course is still called the basics: its id is `basics`, so links and saved progress stay the same. The basics system is a small shop app holding every design its lessons compare: the same "look at a product" journey straight to the server, through a load balancer, with a cache, from a read copy. Those alternatives are switched off on an ordinary day (`journeyTraffic` 0), so Explore freely starts on the simple design.
 
 The course lives in `src/systems/basics/`. `core.ts` builds the system from the parts and journeys the tracks share, and each track has a file of its own (`scaling.ts`, `security.ts`…): its lessons, plus the parts and journeys only its lessons use, whose ids start with the track’s prefix (`sc-`, `se-`…). A track’s own journeys are switched off on an ordinary day without listing them anywhere, and a track with no lessons yet isn’t shown. Each track’s words are in `src/learn/terms/`, added to the shared glossary.
 
@@ -115,7 +115,7 @@ A part that only queues and streams hand work to doesn't fail when it can't keep
 
 A lesson can also make a part fail a share of calls at random (`flaky` in its conditions, 0.05 for 1 in 20), like a shaky connection: that's what retries are for, and the reliability track shows them rescuing those calls, then making an overload worse.
 
-Copies are usually one part with a count, sharing its load evenly. To show how a load balancer chooses, the basics also draw three web servers as separate parts, and mark the hops to them `pick`: the load balancer shares its requests between them by its rule (`balancing` in the conditions, or chosen in its details in Explore freely), not by the hops' `share`. The rules settle where they would in steady state: round robin gives each the same; weighted round robin goes by each copy's size; least connections leaves every copy with the same number of requests open (rate × time); least response time leaves every copy it uses answering in the same time, so a much slower copy gets nothing; hashing the address uses the hops' shares, the part of the users whose address lands on each copy. Health checks leave out copies that are down, unless a step turns them off (`healthChecks: false`). A part can also be `slow` (10 for ten times as long per request, and so a tenth of what it gets through): it still passes its health checks, which is why only the rules that measure notice it.
+Copies are usually one part with a count, sharing its load evenly. To show how a load balancer chooses, the fundamentals also draw three web servers as separate parts, and mark the hops to them `pick`: the load balancer shares its requests between them by its rule (`balancing` in the conditions, or chosen in its details in Explore freely), not by the hops' `share`. The rules settle where they would in steady state: round robin gives each the same; weighted round robin goes by each copy's size; least connections leaves every copy with the same number of requests open (rate × time); least response time leaves every copy it uses answering in the same time, so a much slower copy gets nothing; hashing the address uses the hops' shares, the part of the users whose address lands on each copy. Health checks leave out copies that are down, unless a step turns them off (`healthChecks: false`). A part can also be `slow` (10 for ten times as long per request, and so a tenth of what it gets through): it still passes its health checks, which is why only the rules that measure notice it.
 
 More that the simulation models, each switched on by a step’s conditions or a hop’s fields, so the steps that don’t use them are unchanged:
 
@@ -132,7 +132,7 @@ Each step names the parts to show, the journey to draw (and, with `draw`, others
 
 ### Words, explained
 
-`src/learn/glossary.ts`, with each basics track’s own words from `src/learn/terms/`, is one list of the words system design uses (request, cache, shard, circuit breaker…), each with a one-line meaning and, where it helps, an everyday comparison. `annotate(texts, names)` finds them in a card's text, whole words only and longest phrase first, and marks the first time each appears; journey names are left alone ("Request a ride" isn't a request), but the words in a part's name are explained ("Driver location **index**"). The panels underline those words, and tapping one opens its meaning beside it.
+`src/learn/glossary.ts`, with each fundamentals track’s own words from `src/learn/terms/`, is one list of the words system design uses (request, cache, shard, circuit breaker…), each with a one-line meaning and, where it helps, an everyday comparison. `annotate(texts, names)` finds them in a card's text, whole words only and longest phrase first, and marks the first time each appears; journey names are left alone ("Request a ride" isn't a request), but the words in a part's name are explained ("Driver location **index**"). The panels underline those words, and tapping one opens its meaning beside it.
 
 ## The diagram
 

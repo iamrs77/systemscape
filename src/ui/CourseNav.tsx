@@ -25,6 +25,7 @@ export function CourseNav({ mode }: { mode: Mode }) {
 	const lessonsDone = lessons.filter((l) => isLearned(l.id)).length;
 	const total = lessons.length;
 	const done = lessonsDone;
+	const share = total > 0 ? (done / total) * 100 : 0;
 
 	const where =
 		mode.kind === 'learn'
@@ -41,10 +42,12 @@ export function CourseNav({ mode }: { mode: Mode }) {
 				className="flex items-center gap-2 px-4 py-3 text-left lg:hidden"
 			>
 				<span className="min-w-0 flex-1">
-					<span className="block text-[10px] tracking-wider text-slate-500 uppercase">
+					<span className="block text-[10px] font-semibold tracking-wider text-(--tc-ink) uppercase">
 						Course · {done} of {total} done
 					</span>
-					<span className="block truncate text-sm font-semibold">{where}</span>
+					<span className="block truncate font-display text-sm font-semibold">
+						{where}
+					</span>
 				</span>
 				<ChevronIcon
 					width={16}
@@ -103,16 +106,16 @@ export function CourseNav({ mode }: { mode: Mode }) {
 					open ? 'block' : 'hidden',
 				)}
 			>
-				<div className="flex justify-between text-xs">
-					<span className="font-semibold tracking-wider uppercase">Progress</span>
-					<span className="tabular-nums">
+				<div className="flex items-baseline justify-between">
+					<span className="font-display text-sm font-semibold">Your progress</span>
+					<span className="text-xs font-semibold text-slate-600 tabular-nums">
 						{done} / {total}
 					</span>
 				</div>
-				<div className="mt-2 h-2 overflow-hidden rounded-full border border-slate-200 bg-card">
+				<div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
 					<div
-						className="h-full bg-cyan-300 transition-[width] duration-500"
-						style={{ width: `${(done / total) * 100}%` }}
+						className="h-full rounded-full bg-(--tc) transition-[width] duration-500"
+						style={{ width: `${share}%` }}
 					/>
 				</div>
 				<p className="mt-2 text-[11px] text-slate-500">
@@ -163,12 +166,23 @@ function ResetProgress() {
 	);
 }
 
+/** A track of lessons, or Practice. */
 function Group({ title, count, children }: { title: string; count?: string; children: ReactNode }) {
 	return (
 		<section className="mb-3 last:mb-0">
-			<h2 className="flex justify-between px-2 pt-1 pb-1.5 text-[11px] font-semibold tracking-[0.12em] text-slate-500 uppercase">
-				{title}
-				{count && <span className="tabular-nums">{count}</span>}
+			<h2 className="flex items-center gap-2 px-2 pt-1.5 pb-1.5">
+				<span
+					className="size-2.5 shrink-0 rounded-full bg-(--tc) ring-3 ring-(--tc)/15"
+					aria-hidden="true"
+				/>
+				<span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-slate-800">
+					{title}
+				</span>
+				{count && (
+					<span className="rounded-full bg-(--tc)/10 px-1.5 py-px text-[10px] font-semibold text-(--tc-ink) tabular-nums">
+						{count}
+					</span>
+				)}
 			</h2>
 			<ul className="space-y-0.5">{children}</ul>
 		</section>
@@ -205,14 +219,14 @@ function Item({
 				className={cx(
 					'flex items-center gap-2.5 rounded-lg border px-2 py-1.5 text-sm transition-colors',
 					current
-						? 'border-cyan-200 bg-cyan-50 font-medium text-cyan-900'
-						: 'border-transparent text-slate-700 hover:bg-slate-100',
+						? 'border-(--tc)/25 bg-(--tc)/10 font-semibold text-(--tc-ink)'
+						: 'border-transparent text-slate-700 hover:bg-(--tc)/6',
 				)}
 			>
 				<span
 					className={cx(
-						'grid size-6 shrink-0 place-items-center rounded-md text-[10px] font-semibold',
-						done ? 'bg-cyan-300 text-ink' : 'bg-slate-100 text-slate-500',
+						'grid size-6 shrink-0 place-items-center rounded-md text-[10px] font-semibold transition-colors',
+						done || current ? 'bg-(--tc) text-white' : 'bg-(--tc)/10 text-(--tc-ink)',
 					)}
 				>
 					{done ? <CheckIcon width={12} height={12} /> : mark}

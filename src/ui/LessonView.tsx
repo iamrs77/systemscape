@@ -14,7 +14,7 @@ import { Explained } from './Explained';
 import { buttonSizes, buttonVariants } from './buttonStyles';
 import { Button } from './controls';
 import { cx } from './cx';
-import { ArrowIcon } from './icons';
+import { ArrowIcon, CheckIcon } from './icons';
 
 const drawnSteps = new WeakMap<LessonStep, { system: System; result: SimResult }>();
 
@@ -189,28 +189,51 @@ function StepCard({
 			aria-labelledby="step-title"
 			className="surface flex flex-col overflow-hidden lg:min-h-0 lg:flex-1"
 		>
-			{/* the explanation scrolls; Back and Next stay where they are */}
-			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 pb-2">
-				<p className="text-xs text-slate-500">
-					<span className="font-medium text-slate-700">{lessonTitle}</span> · Step{' '}
-					{number + 1} of {count}
+			{/* the lesson, where you are in it, and the step's title stay in view */}
+			<header className="shrink-0 border-b border-(--tc)/15 bg-linear-to-br from-(--tc)/14 via-(--tc)/5 to-transparent px-5 pt-4 pb-3.5">
+				<p className="flex items-center gap-2 text-xs">
+					<span className="min-w-0 truncate font-semibold text-(--tc-ink)">
+						{lessonTitle}
+					</span>
+					{number === count - 1 ? (
+						<span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-(--tc) px-2 py-0.5 font-semibold text-white">
+							<CheckIcon width={11} height={11} />
+							Lesson done
+						</span>
+					) : (
+						<span className="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-semibold text-slate-600 tabular-nums ring-1 ring-(--tc)/20">
+							Step {number + 1} of {count}
+						</span>
+					)}
 				</p>
 				<div
-					className="mt-2 h-1 overflow-hidden rounded-full bg-slate-100"
+					className="mt-2.5 flex gap-1"
 					role="progressbar"
 					aria-label="Progress through the lesson"
 					aria-valuemin={1}
 					aria-valuemax={count}
 					aria-valuenow={number + 1}
 				>
-					<div
-						className="h-full rounded-full bg-cyan-500 transition-[width] duration-300"
-						style={{ width: `${((number + 1) / count) * 100}%` }}
-					/>
+					{Array.from({ length: count }, (_, i) => (
+						<span
+							key={i}
+							className={cx(
+								'h-1.5 flex-1 rounded-full transition-colors duration-300',
+								i <= number ? 'bg-(--tc)' : 'bg-(--tc)/15',
+							)}
+						/>
+					))}
 				</div>
-				<h2 id="step-title" className="mt-1 text-lg font-semibold tracking-tight">
+				<h2
+					id="step-title"
+					className="mt-3 text-xl leading-snug font-bold tracking-tight text-balance"
+				>
 					{step.title}
 				</h2>
+			</header>
+
+			{/* the explanation scrolls; Back and Next stay where they are */}
+			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-5 pt-1 pb-2">
 				{step.tags.length > 0 && (
 					<ul className="mt-2.5 flex flex-wrap gap-1.5">
 						{step.tags.map((tag) => (
@@ -238,15 +261,21 @@ function StepCard({
 					<Timeline journeyId={step.journeyId} result={result} />
 				)}
 				{step.compare && (
-					<figure className="mt-4 shrink-0 overflow-hidden rounded-xl border border-slate-200">
-						<figcaption className="bg-slate-50 px-3.5 py-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+					<figure className="mt-4 shrink-0 overflow-hidden rounded-xl border border-(--tc)/20">
+						<figcaption className="bg-(--tc)/8 px-3.5 py-2 text-[11px] font-semibold tracking-wider text-(--tc-ink) uppercase">
 							{step.compare.title}
 						</figcaption>
-						<dl className="divide-y divide-slate-100 text-[13px]">
+						<dl className="divide-y divide-(--tc)/10 text-[13px]">
 							{step.compare.rows.map(([choice], i) => (
 								<div key={choice} className="px-3.5 py-2">
-									<dt className="font-semibold text-ink">{choice}</dt>
-									<dd className="mt-0.5 leading-snug text-slate-600">
+									<dt className="flex items-center gap-2 font-semibold text-ink">
+										<span
+											className="size-1.5 shrink-0 rounded-full bg-(--tc)"
+											aria-hidden="true"
+										/>
+										{choice}
+									</dt>
+									<dd className="mt-0.5 pl-3.5 leading-snug text-slate-600">
 										<Explained pieces={compared[i]!} />
 									</dd>
 								</div>
@@ -270,7 +299,7 @@ function StepCard({
 					<button
 						type="button"
 						onClick={() => onAbout(about.id)}
-						className="mt-3 self-start text-xs text-cyan-700 hover:underline"
+						className="mt-3 self-start text-xs font-semibold text-(--tc-ink) hover:underline"
 					>
 						More about {about.name} →
 					</button>
@@ -344,13 +373,13 @@ function Timeline({ journeyId, result }: { journeyId: string; result: SimResult 
 	const state = result.journeys[journeyId]!;
 	const longest = Math.max(1, ...state.hops.map((h) => h.waitMs));
 	return (
-		<ol className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+		<ol className="mt-4 space-y-2 rounded-xl border border-(--tc)/15 bg-(--tc)/4 p-3">
 			{journey.hops.map((hop, i) => {
 				const wait = state.hops[i]!.waitMs;
 				return (
 					<li key={`${hop.from}-${hop.to}-${i}`} className="text-xs">
 						<div className="flex gap-2">
-							<span className="w-4 shrink-0 text-slate-400 tabular-nums">
+							<span className="w-4 shrink-0 font-semibold text-(--tc-ink) tabular-nums">
 								{i + 1}
 							</span>
 							<span className="min-w-0 flex-1 truncate">
@@ -395,38 +424,42 @@ function PartAbout({ id, result, onBack }: { id: string; result: SimResult; onBa
 		namesOf(system),
 	);
 	return (
-		<section aria-labelledby="part-title" className="surface p-5">
-			<button
-				type="button"
-				onClick={onBack}
-				className="text-xs text-cyan-700 hover:underline"
-			>
-				← Back to the step
-			</button>
-			<p className="mt-3 text-xs tracking-wider text-slate-500 uppercase">
-				{kindLabel[component.kind]}
-				{component.kind !== 'client' && component.kind !== 'external'
-					? ` · ${copies} ${copies === 1 ? 'copy' : 'copies'}`
-					: ''}
-			</p>
-			<h2 id="part-title" className="mt-1 text-lg font-semibold">
-				{component.name}
-			</h2>
-			<p className="mt-2 text-[15px] leading-relaxed text-slate-700">
-				<Explained pieces={summary!} />
-			</p>
-			<dl className="mt-4 space-y-3 text-sm">
-				{rows.map(([label], i) => (
-					<div key={label}>
-						<dt className="text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
-							{label}
-						</dt>
-						<dd className="mt-0.5 text-slate-700">
-							<Explained pieces={explained[i]!} />
-						</dd>
-					</div>
-				))}
-			</dl>
+		<section aria-labelledby="part-title" className="surface overflow-hidden">
+			<header className="border-b border-(--tc)/15 bg-linear-to-br from-(--tc)/14 via-(--tc)/5 to-transparent px-5 pt-4 pb-3.5">
+				<button
+					type="button"
+					onClick={onBack}
+					className="text-xs font-semibold text-(--tc-ink) hover:underline"
+				>
+					← Back to the step
+				</button>
+				<p className="mt-3 text-xs font-semibold tracking-wider text-(--tc-ink) uppercase">
+					{kindLabel[component.kind]}
+					{component.kind !== 'client' && component.kind !== 'external'
+						? ` · ${copies} ${copies === 1 ? 'copy' : 'copies'}`
+						: ''}
+				</p>
+				<h2 id="part-title" className="mt-1 text-xl font-bold tracking-tight">
+					{component.name}
+				</h2>
+			</header>
+			<div className="p-5 pt-4">
+				<p className="text-[15px] leading-relaxed text-slate-700">
+					<Explained pieces={summary!} />
+				</p>
+				<dl className="mt-4 space-y-3 text-sm">
+					{rows.map(([label], i) => (
+						<div key={label} className="border-l-2 border-(--tc)/30 pl-3">
+							<dt className="text-[11px] font-semibold tracking-wider text-(--tc-ink) uppercase">
+								{label}
+							</dt>
+							<dd className="mt-0.5 text-slate-700">
+								<Explained pieces={explained[i]!} />
+							</dd>
+						</div>
+					))}
+				</dl>
+			</div>
 		</section>
 	);
 }
@@ -436,15 +469,15 @@ function Sent({ example }: { example: NonNullable<LessonStep['example']> }) {
 	const sent = example.data.filter(([key]) => key !== 'answer');
 	const answer = example.data.find(([key]) => key === 'answer')?.[1];
 	return (
-		<figure className="mt-4 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+		<figure className="mt-4 shrink-0 overflow-hidden rounded-xl border border-(--tc)/20 bg-(--tc)/5">
 			<figcaption className="px-3.5 pt-3 text-sm text-slate-700">
-				<span className="block text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+				<span className="block text-[11px] font-semibold tracking-wider text-(--tc-ink) uppercase">
 					What’s sent
 				</span>
 				{example.says}
 			</figcaption>
 			{sent.length > 0 && (
-				<dl className="mx-3.5 mt-2.5 mb-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs">
+				<dl className="mx-3.5 mt-2.5 mb-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg border border-(--tc)/15 bg-white px-3 py-2 font-mono text-xs">
 					{sent.map(([key, value]) => (
 						<div key={key} className="contents">
 							<dt className="text-slate-500">{key}</dt>
@@ -454,8 +487,8 @@ function Sent({ example }: { example: NonNullable<LessonStep['example']> }) {
 				</dl>
 			)}
 			{answer && (
-				<p className="flex gap-2 border-t border-slate-200 bg-white px-3.5 py-2 text-xs">
-					<span className="font-semibold text-cyan-700">↩ Answer</span>
+				<p className="flex gap-2 border-t border-(--tc)/15 bg-white px-3.5 py-2 text-xs">
+					<span className="font-semibold text-(--tc-ink)">↩ Answer</span>
 					<span className="font-mono text-ink">{answer}</span>
 				</p>
 			)}

@@ -13,7 +13,7 @@ A browser app with a 3D view, several panels sharing state with it, a simulation
 - **three.js with React Three Fiber and drei** for the 3D view. The scene is described as React components (a `ComponentNode` per part, a `Connections` group), reading the same store as the panels, so selecting something in one updates the other without any glue. drei provides the orbit controls, the ground grid, rounded boxes and thick lines. The whole scene is loaded with `lazy()`, so three.js (about 260 KB gzipped) arrives after the page shows.
 - **zustand** for state: the conditions, the latest result, the selection. Components subscribe to just the slice they draw, so dragging the traffic slider doesn't re-render the About dialog or the challenge list. Actions that change the conditions re-run the simulation inside the store, so a result can never be stale.
 - **zod** for the system schema ([ADR 0003](0003-systems-as-data.md)).
-- **Tailwind CSS 4** for the interface, plus a few hand-written classes for the labels over the canvas.
+- **Tailwind CSS 4** for the interface, plus a few hand-written classes for the labels over the canvas. The fonts changed in [ADR 0010](0010-a-look-of-its-own.md).
 - **Vitest, Testing Library and Playwright.** The simulation, layout and camera fit are pure functions, tested directly. The panels are tested in jsdom with the 3D scene replaced by a stub. Playwright runs the production build in Chromium with software WebGL, on a desktop and a phone size, and fails on any console error.
 - **ESLint with typescript-eslint (strict) and the React hooks plugin's React Compiler rules**, and **Prettier**. The compiler rules flagged mutating three.js objects created in `useMemo`; the scene uses refs and declarative materials instead.
 

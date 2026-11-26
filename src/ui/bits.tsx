@@ -19,7 +19,7 @@ export function Facts({ facts }: { facts: { label: string; value: string; hint?:
 			{facts.map((fact) => (
 				<div
 					key={fact.label}
-					className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white/95 px-2.5 py-1.5 shadow-sm sm:min-w-24 sm:flex-none sm:px-3"
+					className="min-w-0 flex-1 rounded-xl border border-l-[3px] border-slate-200 border-l-(--tc) bg-white/95 px-2.5 py-1.5 shadow-sm sm:min-w-24 sm:flex-none sm:px-3"
 				>
 					<dt className="text-[10px] tracking-wider text-slate-500 uppercase">
 						{fact.label}
@@ -46,17 +46,53 @@ export function Callout({
 	title: string;
 	children: ReactNode;
 }) {
+	const good = tone === 'good';
 	return (
 		<div
 			className={cx(
-				'rounded-xl border px-3.5 py-3 text-sm',
-				tone === 'good'
-					? 'border-cyan-400 bg-cyan-50 text-cyan-900'
-					: 'border-red-300 bg-red-50 text-red-900',
+				'flex gap-3 rounded-xl border px-3.5 py-3 text-sm',
+				good
+					? 'border-(--tc)/25 bg-(--tc)/6 text-slate-800'
+					: 'border-rose-200 bg-rose-50 text-rose-950',
 			)}
 		>
-			<p className="text-[11px] font-semibold tracking-wider uppercase opacity-80">{title}</p>
-			<p className="mt-1">{children}</p>
+			<span
+				className={cx(
+					'mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg text-white',
+					good ? 'bg-(--tc)' : 'bg-rose-500',
+				)}
+				aria-hidden="true"
+			>
+				<svg
+					width="14"
+					height="14"
+					viewBox="0 0 16 16"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.6"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				>
+					{good ? (
+						// a light bulb
+						<path d="M8 1.75a4.25 4.25 0 0 0-2.5 7.7c.4.3.6.7.6 1.2V11.5h3.8v-.85c0-.5.2-.9.6-1.2A4.25 4.25 0 0 0 8 1.75zM6.25 14.25h3.5" />
+					) : (
+						// a warning sign
+						<path d="M8 2 14.5 13.5h-13zM8 6.5v3M8 11.6v.1" />
+					)}
+				</svg>
+			</span>
+			<div className="min-w-0">
+				<p
+					className={cx(
+						'text-[11px] font-semibold tracking-wider uppercase',
+						good ? 'text-(--tc-ink)' : 'text-rose-700',
+					)}
+				>
+					{title}
+				</p>
+				<p className="mt-1">{children}</p>
+			</div>
 		</div>
 	);
 }

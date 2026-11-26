@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from 'react';
+import { type CSSProperties, useEffect, useLayoutEffect } from 'react';
 import { useRoute, type Mode } from '@/route';
 import { useApp, useSystem } from '@/store';
 import { AboutDialog } from '@/ui/AboutDialog';
@@ -11,6 +11,7 @@ import { SandboxView } from '@/ui/SandboxView';
 import { TopBar } from '@/ui/TopBar';
 import { cx } from '@/ui/cx';
 import { ChevronIcon } from '@/ui/icons';
+import { LESSON_COLOR } from '@/ui/palette';
 
 /** The home page, or the system the URL names. */
 export function App() {
@@ -47,7 +48,10 @@ function Explorer({ systemId, mode }: { systemId: string; mode: Mode }) {
 	}, [system.name]);
 
 	return (
-		<div className="flex min-h-dvh flex-col lg:h-dvh">
+		<div
+			className="accent explorer-glow flex min-h-dvh flex-col lg:h-dvh"
+			style={{ '--tc': LESSON_COLOR } as CSSProperties}
+		>
 			<TopBar />
 			{ready && (
 				<div

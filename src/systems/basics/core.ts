@@ -68,7 +68,7 @@ export function basicsSystem(modules: TrackModule[]): SystemInput {
 
 	return {
 		id: 'basics',
-		name: 'The basics',
+		name: 'The fundamentals',
 		tagline:
 			'The ideas every system is built from, on a small shop app: requests, latency, throughput and more.',
 		basis: 'example',

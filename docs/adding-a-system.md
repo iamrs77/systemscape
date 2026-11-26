@@ -114,4 +114,6 @@ Each journey's lesson ends on a scenario: the one named by the journey's `scenar
 
 Add it to `systems` in `src/systems/index.ts`.
 
+On the home page, a system takes its colour from `systemColor` in `src/ui/palette.ts`. Add one there, or it gets a spare. Its card shows a small live drawing of its diagram until it has a poster: draw one in `src/ui/posters.tsx` and add it to `POSTERS` ([design](design.md#the-front-page)).
+
 `parseSystem` runs when the app loads, and lists every problem at once: a hop to a component that doesn't exist, a hop from somewhere the journey hasn't reached, a cache without a hit rate. Then tune capacities until the scenarios tell the story you want: open Explore freely on each one, and the panel beside the diagram says what's failing and why. The normal scenario should run without failures.

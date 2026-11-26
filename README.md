@@ -6,7 +6,7 @@ Learn how big apps are built, one step at a time. Pick an app you use every day 
 
 There are four systems so far: a **ride-hailing app** like Uber or Ola, a **video streaming app** like Netflix or Hotstar, **UPI payments** through an app like PhonePe or Google Pay, and [**Stockroom**](https://github.com/iamrs77/stockroom), my own inventory app, drawn from its real code.
 
-New to system design? Start with **the basics**: eleven tracks, 66 lessons (how requests work, performance, scaling, storing data, data on many machines, communication, reliability, architecture, security, shipping, and whole systems) that teach the ideas every system here is built from, one at a time, on a small shop app. Each lesson names every common way of doing it, how each works, what it costs, and when to choose it, and shows it happening: latency percentiles and napkin math, load balancing algorithms and layer 4 against layer 7, cache writes and stampedes, CDNs, autoscaling, SQL and the kinds of NoSQL, indexes, storage engines, transactions and isolation levels, replication, quorums, sharding, consistent hashing, unique IDs, CAP, consensus, REST, gRPC and GraphQL, queues, Kafka, WebSockets and webhooks, failover and disaster recovery, retries, circuit breakers, rate limiting algorithms, observability and SLOs, microservices, service discovery, sagas, stream processing, authentication, authorization, encryption, testing and deployments. The last track puts it all together: how to approach a design, then a URL shortener, a news feed and a chat app, built up a piece at a time.
+New to system design? Start with **the fundamentals**: eleven tracks, 66 lessons (how requests work, performance, scaling, storing data, data on many machines, communication, reliability, architecture, security, shipping, and whole systems) that teach the ideas every system here is built from, one at a time, on a small shop app. Each lesson names every common way of doing it, how each works, what it costs, and when to choose it, and shows it happening: latency percentiles and napkin math, load balancing algorithms and layer 4 against layer 7, cache writes and stampedes, CDNs, autoscaling, SQL and the kinds of NoSQL, indexes, storage engines, transactions and isolation levels, replication, quorums, sharding, consistent hashing, unique IDs, CAP, consensus, REST, gRPC and GraphQL, queues, Kafka, WebSockets and webhooks, failover and disaster recovery, retries, circuit breakers, rate limiting algorithms, observability and SLOs, microservices, service discovery, sagas, stream processing, authentication, authorization, encryption, testing and deployments. The last track puts it all together: how to approach a design, then a URL shortener, a news feed and a chat app, built up a piece at a time.
 
 ![A lesson following a ride request: the diagram zoomed in on the call being explained, and the step's explanation beside it, with what's actually sent](docs/screenshots/overview.webp)
 
@@ -14,7 +14,7 @@ New to system design? Start with **the basics**: eleven tracks, 66 lessons (how 
 
 Architecture diagrams are static: they show the boxes, not what happens when Friday night arrives or the cache falls over. Systemscape puts a live model behind the diagram, and walks you through it.
 
-- **Learn the ideas first.** The basics teach one idea per lesson, on a shop app that grows as you go: each step draws only the parts it's about, changes one thing (the traffic, a bigger server, a cache, a second database) and shows the numbers that change with it.
+- **Learn the ideas first.** The fundamentals teach one idea per lesson, on a shop app that grows as you go: each step draws only the parts it's about, changes one thing (the traffic, a bigger server, a cache, a second database) and shows the numbers that change with it.
 - **Start with the big picture.** The first lesson goes through the system a row at a time, from the apps at the top to the data at the bottom: what each part is for, and why the design needs it.
 - **Follow a request.** Each journey, like requesting a ride, is a lesson with a step per call: who calls whom, who waits, what's optional or happens in the background, and where the time goes. The diagram zooms in on each call as you go.
 - **See what breaks.** Each lesson ends on a night that shows something new: too much traffic (a sudden rainstorm, New Year's Eve), or a part breaking (the maps, the surge cache, the payment provider). What gets overloaded, how the failure spreads, what keeps working, and how many requests still succeed.
@@ -54,6 +54,7 @@ flowchart LR
 - **Follow one person.** Each journey follows Rohit (or Arjun, his driver) on one evening in Bengaluru, and every call shows what's actually sent: the pickup point, the trip number, the fare, and the answer that comes back.
 - **Plain words and plain numbers.** Everything is written in simple English: short sentences, everyday words. Jargon is underlined the first time it appears on a card: tap it for a one-line meaning and an everyday comparison, from one glossary every system shares. Numbers come with what they mean: 55 ms is “under a blink”, 250 a second is “15,000 every minute”.
 - **Every page has its own link.** The home page, each lesson and step, and Explore freely have their own address (`#/ride-hailing/learn/request-ride/3`), kept in the URL's hash so it works on any static host.
+- **A front page with colour.** The fundamentals wind down the page as a path, one colour per track, joined by a line with dots moving along it. Each system has a colour of its own and a drawn, animated poster: a car crossing a city, a film going out live, a ₹ coin passing through the bank, a scanner sweeping the shelves. The lesson pages keep to one calm indigo, so the diagram stands out.
 - **It works on phones.** The course folds into one button, and the step's explanation follows the diagram.
 - **Small.** The whole app is 140 KB of JavaScript (gzipped), and needs no WebGL.
 
@@ -67,7 +68,7 @@ The design, the simulation's formulas and the reasons behind each decision are i
 | Diagram     | SVG, drawn by React                                                | Crisp at any size, with labels that are real buttons, and the drawing maths is plain functions.                                 |
 | State       | zustand                                                            | One small store for the conditions and the simulation's result; components subscribe to just the slice they draw.               |
 | Data checks | zod                                                                | Each system file is validated when the app starts.                                                                              |
-| Styling     | Tailwind CSS 4, IBM Plex Sans and Mono                             | Quick to build a consistent interface, with nothing to load at runtime; the fonts are bundled, not fetched from a font service. |
+| Styling     | Tailwind CSS 4, Bricolage Grotesque, Figtree and IBM Plex Mono     | Quick to build a consistent interface, with nothing to load at runtime; the fonts are bundled, not fetched from a font service. |
 | Tooling     | ESLint (with the React Compiler's rules), Prettier, GitHub Actions | Checked on every push, along with the types and the build.                                                                      |
 
 ## Running it
@@ -99,12 +100,13 @@ src/
   ui/         the home page, the course, the lesson and Explore freely screens, and their panels
   route.ts    which page you're on (home, a lesson step, Explore freely), from the URL's hash
   store.ts    the app's state, and the actions that re-run the simulation
-docs/         architecture, decisions, and how to add a system
+docs/         architecture, design, decisions, and how to add a system
 ```
 
 ## Documentation
 
 - [Architecture](docs/architecture.md): how the parts fit, the simulation in detail, the lessons and the diagram, and the limits.
+- [Design](docs/design.md): the type, the colours, the front page's path and posters, the lesson pages, and the motion.
 - [Adding a system](docs/adding-a-system.md): what goes in a system file, and how it's checked.
 - Decision records:
   [1. A static site](docs/adr/0001-static-site.md) ·
@@ -115,7 +117,8 @@ docs/         architecture, decisions, and how to add a system
   [6. The tech stack](docs/adr/0006-tech-stack.md) ·
   [7. Pages in the URL's hash](docs/adr/0007-hash-routing.md) ·
   [8. A drawn diagram and guided lessons](docs/adr/0008-diagram-and-lessons.md) ·
-  [9. Explore freely instead of challenges](docs/adr/0009-explore-instead-of-challenges.md)
+  [9. Explore freely instead of challenges](docs/adr/0009-explore-instead-of-challenges.md) ·
+  [10. A look of its own](docs/adr/0010-a-look-of-its-own.md)
 
 ## License
 

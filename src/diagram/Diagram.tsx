@@ -73,7 +73,7 @@ export type DiagramProps = {
 const LABEL_SIZE = 0.5;
 const LINE = 0.66;
 const DETAIL_SIZE = 0.44;
-/** IBM Plex Sans is narrower than its mono: about half an em a character. */
+/** Figtree, the sans, is narrower than the mono: about half an em a character. */
 const SANS = 0.53;
 /** IBM Plex Mono's characters are 0.6em wide, so label widths can be worked out. */
 const CHAR = 0.6;
